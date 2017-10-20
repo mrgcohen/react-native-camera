@@ -92,6 +92,7 @@ RCT_EXPORT_MODULE();
                @"AVCaptureSessionPresetLow": @(RCTCameraCaptureSessionPresetLow),
                @"medium": @(RCTCameraCaptureSessionPresetMedium),
                @"AVCaptureSessionPresetMedium": @(RCTCameraCaptureSessionPresetMedium),
+               @"360p": @(RCTCameraCaptureSessionPresetMedium),
                @"high": @(RCTCameraCaptureSessionPresetHigh),
                @"AVCaptureSessionPresetHigh": @(RCTCameraCaptureSessionPresetHigh),
                @"photo": @(RCTCameraCaptureSessionPresetPhoto),

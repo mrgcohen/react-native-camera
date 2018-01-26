@@ -259,7 +259,7 @@ public class RCTCamera {
         switch (captureQuality) {
             case RCTCameraModule.RCT_CAMERA_CAPTURE_QUALITY_LOW:
                 videoSize = getSmallestSize(supportedSizes);
-                cm = CamcorderProfile.get(_cameraTypeToIndex.get(cameraType), CamcorderProfile.QUALITY_480P);
+                cm = getLowQualityProfile(_cameraTypeToIndex.get(cameraType));
                 break;
             case RCTCameraModule.RCT_CAMERA_CAPTURE_QUALITY_MEDIUM:
                 videoSize = supportedSizes.get(supportedSizes.size() / 2);
@@ -416,6 +416,18 @@ public class RCTCamera {
             cameraInfo.previewWidth = height;
             cameraInfo.previewHeight = width;
         }
+    }
+
+    private CamcorderProfile getLowQualityProfile(int cameraId) {
+      int[] lowQualityProfiles = { CamcorderProfile.QUALITY_480P, CamcorderProfile.QUALITY_QVGA, CamcorderProfile.QUALITY_QCIF, CamcorderProfile.QUALITY_LOW };
+
+      for (int profile : lowQualityProfiles) {
+          if (CamcorderProfile.hasProfile(cameraId, profile)) {
+              return CamcorderProfile.get(cameraId, profile);
+          }
+      }
+
+      return CamcorderProfile.get(cameraId, CamcorderProfile.QUALITY_LOW);
     }
 
     private RCTCamera(int deviceOrientation) {

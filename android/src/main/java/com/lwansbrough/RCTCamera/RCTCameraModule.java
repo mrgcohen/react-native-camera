@@ -290,6 +290,7 @@ public class RCTCameraModule extends ReactContextBaseJavaModule
 
         // Set video output format and encoding using CamcorderProfile.
         cm.fileFormat = MediaRecorder.OutputFormat.MPEG_4;
+        cm.videoCodec = MediaRecorder.VideoEncoder.H264;
         mMediaRecorder.setProfile(cm);
 
         if (options.getString("quality").equals(RCT_CAMERA_CAPTURE_QUALITY_LOW)) {

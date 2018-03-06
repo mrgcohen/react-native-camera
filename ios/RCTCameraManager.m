@@ -437,6 +437,8 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
     AVCaptureMovieFileOutput *movieFileOutput = [[AVCaptureMovieFileOutput alloc] init];
     if ([self.session canAddOutput:movieFileOutput])
     {
+      AVCaptureConnection *movieFileOutputConnection = [movieFileOutput connectionWithMediaType:AVMediaTypeVideo];
+      [movieFileOutput setOutputSettings:@{AVVideoCodecKey : AVVideoCodecH264} forConnection:movieFileOutputConnection];
       [self.session addOutput:movieFileOutput];
       self.movieFileOutput = movieFileOutput;
     }

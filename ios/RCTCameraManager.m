@@ -763,7 +763,9 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
   }
 
   dispatch_async(self.sessionQueue, ^{
-    [[self.movieFileOutput connectionWithMediaType:AVMediaTypeVideo] setVideoOrientation:orientation];
+    AVCaptureConnection *movieFileOutputConnection = [self.movieFileOutput connectionWithMediaType:AVMediaTypeVideo];
+    [movieFileOutputConnection setVideoOrientation:orientation];
+    [self.movieFileOutput setOutputSettings:@{AVVideoCodecKey : AVVideoCodecH264} forConnection:movieFileOutputConnection];
 
     //Create temporary URL to record to
     NSString *outputPath = [[NSString alloc] initWithFormat:@"%@%@", NSTemporaryDirectory(), @"output.mov"];

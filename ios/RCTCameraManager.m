@@ -32,7 +32,8 @@ typedef NS_ENUM( NSInteger, RecordingStatus )
   
   AVAssetWriter *_assetWriter;
   dispatch_queue_t _writingQueue;
-  BOOL startedSession;
+  BOOL _startedSession;
+  BOOL _startedTime;
   
   AVCaptureVideoOrientation _videoBufferOrientation;
   
@@ -490,9 +491,11 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
     }
     
     // setup audio
+    NSLog(@"Building avcapture output");
     AVCaptureAudioDataOutput *audioFileOutput = [[AVCaptureAudioDataOutput alloc] init];
     [audioFileOutput setSampleBufferDelegate:self queue:_audioCaptureQueue];
     if ([self.session canAddOutput:audioFileOutput]){
+      NSLog(@"ADding output for audio file output");
       [self.session addOutput:audioFileOutput];
       self.audioFileOutput = audioFileOutput;
     }
@@ -504,6 +507,7 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
     [videoFileOutput setSampleBufferDelegate:self queue:_videoDataOutputQueue];
     videoFileOutput.alwaysDiscardsLateVideoFrames = NO;
     if ([self.session canAddOutput:videoFileOutput]){
+      NSLog(@"ADding output for video file output");
       [self.session addOutput:videoFileOutput];
       self.videoFileOutput = videoFileOutput;
     }
@@ -522,6 +526,7 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
     [self setRuntimeErrorHandlingObserver:[NSNotificationCenter.defaultCenter addObserverForName:AVCaptureSessionRuntimeErrorNotification object:self.session queue:nil usingBlock:^(NSNotification *note) {
       RCTCameraManager *strongSelf = weakSelf;
       dispatch_async(strongSelf.sessionQueue, ^{
+        NSLog(@"Log session restart failure");
         // Manually restarting the session since it must have been stopped due to an error.
         [strongSelf.session startRunning];
       });
@@ -833,11 +838,7 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
   }
   
   dispatch_async(self.sessionQueue, ^{
-    //    if (@available(iOS 10, *)) {
-    //      [self.movieFileOutput setOutputSettings:@{AVVideoCodecKey : AVVideoCodecH264} forConnection:movieFileOutputConnection];
-    //    }
-    
-    //Create temporary URL to record to
+    // Create temporary URL to record to (mp4)
     NSString *outputPath = [[NSString alloc] initWithFormat:@"%@%@", NSTemporaryDirectory(), @"output.mp4"];
     NSURL *outputURL = [[NSURL alloc] initFileURLWithPath:outputPath];
     NSFileManager *fileManager = [NSFileManager defaultManager];
@@ -880,26 +881,27 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
       NSLog(@"Start adding input audio");
     }
     
-    // try to start
-    if (![_assetWriter startWriting]) {
-      NSLog(@"Start writing failed");
-      reject(RCTErrorUnspecified, nil, RCTErrorWithMessage(_assetWriter.error.description));
-    } else {
-      NSLog(@"Start writing success");
-      [_assetWriter startSessionAtSourceTime:kCMTimeZero];
-      startedSession = YES;
-      @synchronized(self) {
-        [self transitionToRecordingStatus:Recording error:nil];
-      }
-    };
-    
-    
-    //Start recording
+    [self attemptToStartWriting:resolve andReject:reject];
     
     self.videoResolve = resolve;
     self.videoReject = reject;
     self.videoTarget = target;
   });
+}
+
+- (void) attemptToStartWriting:(RCTPromiseResolveBlock)resolve andReject:(RCTPromiseRejectBlock)reject {
+  // try to start
+  if (![_assetWriter startWriting]) {
+    NSLog(@"Start writing failed");
+    reject(RCTErrorUnspecified, nil, RCTErrorWithMessage(_assetWriter.error.description));
+  } else {
+    NSLog(@"Start writing success");
+    //[_assetWriter startSessionAtSourceTime:kCMTimeZero];
+    _startedSession = YES;
+    @synchronized(self) {
+      [self transitionToRecordingStatus:Recording error:nil];
+    }
+  };
 }
 
 - (UIImage *) imageFromSampleBuffer:(CMSampleBufferRef) sampleBuffer
@@ -928,12 +930,20 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
 - (void)captureOutput:(AVCaptureOutput *)captureOutput didOutputSampleBuffer:(nonnull CMSampleBufferRef)sampleBuffer fromConnection:(nonnull AVCaptureConnection *)connection {
   CMFormatDescriptionRef formatDescription = CMSampleBufferGetFormatDescription( sampleBuffer );
   CFRetain(sampleBuffer);
-  if (startedSession) {
+  if (_startedSession) {
+    if (!_startedTime){
+      _startedTime = true;
+      [_assetWriter startSessionAtSourceTime:CMSampleBufferGetPresentationTimeStamp(sampleBuffer)];
+    }
     dispatch_async( _writingQueue, ^{
       if (connection.output == [self videoFileOutput]) {
+        //        NSLog(@"Connection for video %@", connection);
+        //        UIImage *image = [self imageFromSampleBuffer:sampleBuffer];
+        NSLog(@"Video connection");
         @autoreleasepool {
           @synchronized(self) {
             if (_recordingStatus == Recording) {
+              NSLog(@"Capturing video output");
               if (_videoInput.readyForMoreMediaData) {
                 [_videoInput appendSampleBuffer:sampleBuffer];
               } else {
@@ -943,9 +953,11 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
           }
         }
       } else {
+        NSLog(@"audio connection");
         @autoreleasepool {
           @synchronized(self) {
             if (_recordingStatus == Recording) {
+              NSLog(@"Captuing audio ouptut");
               if (_audioInput.readyForMoreMediaData) {
                 [_audioInput appendSampleBuffer:sampleBuffer];
               } else {
@@ -961,6 +973,7 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
 }
 
 - (void)captureOutput:(AVCaptureFileOutput *)captureOutput didFinishRecordingToOutputFileAtURL:(NSURL *)outputFileURL fromConnections:(NSArray *)connections error:(NSError *)error {
+  NSLog(@"CApture file output called");
   BOOL recordSuccess = YES;
   if ([error code] != noErr) {
     // A problem occurred: Find out if the recording was successful.
@@ -1047,6 +1060,7 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
 }
 
 - (void)captureOutput:(AVCaptureOutput *)captureOutput didOutputMetadataObjects:(NSArray *)metadataObjects fromConnection:(AVCaptureConnection *)connection {
+  
   
   for (AVMetadataMachineReadableCodeObject *metadata in metadataObjects) {
     for (id barcodeType in self.barCodeTypes) {
@@ -1207,11 +1221,13 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
   
   // terminal states
   if ( ( newStatus == FinishedRecording ) || ( newStatus == Failed ) ) {
-    startedSession = NO;
+    _startedSession = NO;
+    _startedTime = false;
     if (newStatus == Failed) {
       // handle failure
     } else {
       // handle success finished
+      
       [self handleFinishedRecording];
       
     }
@@ -1294,8 +1310,10 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
       return;
     }
     [videoInfo setObject:fullPath forKey:@"path"];
+    [self transitionToRecordingStatus:Idle error:nil];
     self.videoResolve(videoInfo);
   } else {
+    [self transitionToRecordingStatus:Idle error:nil];
     self.videoReject(RCTErrorUnspecified, nil, RCTErrorWithMessage(@"Target not supported"));
   }
 }

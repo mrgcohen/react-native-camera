@@ -733,18 +733,6 @@ static NSDictionary *defaultFaceDetectorOptions = nil;
   }
 }
 
-# pragma mark - AVCaptureMovieFileOutput
-
-- (void)setupMovieFileCapture
-{
-  AVCaptureMovieFileOutput *movieFileOutput = [[AVCaptureMovieFileOutput alloc] init];
-  
-  if ([self.session canAddOutput:movieFileOutput]) {
-    [self.session addOutput:movieFileOutput];
-    self.movieFileOutput = movieFileOutput;
-  }
-}
-
 - (void)setupDataFileCapture
 {
   [self setupDataAudioCapture];
@@ -774,11 +762,9 @@ static NSDictionary *defaultFaceDetectorOptions = nil;
     NSLog(@"Adding output for audio file output");
     [self.session addOutput:audioOut];
     self.audioDataOutput = audioOut;
-  } else {
-    NSLog(@"Can't add output for audio file output");
   }
   if (self.audioConnection == nil) {
-    _audioConnection = [audioOut connectionWithMediaType:AVMediaTypeAudio];
+    self.audioConnection = [audioOut connectionWithMediaType:AVMediaTypeAudio];
   }
 }
 

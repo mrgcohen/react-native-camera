@@ -430,6 +430,8 @@ static NSDictionary *defaultFaceDetectorOptions = nil;
       [self setupAVWriterAudioInput:@{}];
       [self setupAVWriterVideoInput:@{}];
       
+      [self startAVDataWriter];
+      
       self.videoRecordedResolve = resolve;
       self.videoRecordedReject = reject;
     });
@@ -709,17 +711,7 @@ static NSDictionary *defaultFaceDetectorOptions = nil;
   }
 }
 
-# pragma mark - AVCaptureMovieFileOutput
-
-- (void)setupMovieFileCapture
-{
-  AVCaptureMovieFileOutput *movieFileOutput = [[AVCaptureMovieFileOutput alloc] init];
-  
-  if ([self.session canAddOutput:movieFileOutput]) {
-    [self.session addOutput:movieFileOutput];
-    self.movieFileOutput = movieFileOutput;
-  }
-}
+# pragma mark - AVCaptureVideoDataOutput
 
 - (void)setupDataFileCapture
 {
@@ -819,15 +811,6 @@ static NSDictionary *defaultFaceDetectorOptions = nil;
   _videoConnection = nil;
 }
 
-- (void)cleanupMovieFileCapture
-{
-  if ([_session.outputs containsObject:_movieFileOutput]) {
-    [_session removeOutput:_movieFileOutput];
-    _movieFileOutput = nil;
-  }
-}
-
-// Captures video/audio buffers, not final output
 - (void)captureOutput:(AVCaptureOutput *)captureOutput didOutputSampleBuffer:(nonnull CMSampleBufferRef)sampleBuffer fromConnection:(nonnull AVCaptureConnection *)connection
 {
   CFRetain(sampleBuffer);
@@ -902,40 +885,6 @@ static NSDictionary *defaultFaceDetectorOptions = nil;
     [self updateSessionPreset:AVCaptureSessionPresetHigh];
   }
 }
-
-//// Old capture of output file (for movie)
-//- (void)captureOutput:(AVCaptureFileOutput *)captureOutput didFinishRecordingToOutputFileAtURL:(NSURL *)outputFileURL fromConnections:(NSArray *)connections error:(NSError *)error
-//{
-//    BOOL success = YES;
-//    if ([error code] != noErr) {
-//        NSNumber *value = [[error userInfo] objectForKey:AVErrorRecordingSuccessfullyFinishedKey];
-//        if (value) {
-//            success = [value boolValue];
-//        }
-//    }
-//    if (success && self.videoRecordedResolve != nil) {
-//      AVVideoCodecType videoCodec = self.videoCodecType;
-//      if (videoCodec == nil) {
-//        videoCodec = [self.movieFileOutput.availableVideoCodecTypes firstObject];
-//      }
-//
-//      self.videoRecordedResolve(@{ @"uri": outputFileURL.absoluteString, @"codec":videoCodec });
-//    } else if (self.videoRecordedReject != nil) {
-//        self.videoRecordedReject(@"E_RECORDING_FAILED", @"An error occurred while recording a video.", error);
-//    }
-//    self.videoRecordedResolve = nil;
-//    self.videoRecordedReject = nil;
-//    self.videoCodecType = nil;
-//
-//    [self cleanupMovieFileCapture];
-//    // If face detection has been running prior to recording to file
-//    // we reenable it here (see comment in -record).
-//    [_faceDetectorManager maybeStartFaceDetectionOnSession:_session withPreviewLayer:_previewLayer];
-//
-//    if (self.session.sessionPreset != AVCaptureSessionPresetHigh) {
-//        [self updateSessionPreset:AVCaptureSessionPresetHigh];
-//    }
-//}
 
 # pragma mark - Face detector
 

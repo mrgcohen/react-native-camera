@@ -383,48 +383,48 @@ static NSDictionary *defaultFaceDetectorOptions = nil;
 
 - (void)record:(NSDictionary *)options resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject
 {
-  if (_videoDataOutput == nil && _audioDataOutput == nil) {
-    [self setupDataFileCapture];
-  }
-  
-  if (self.videoDataOutput != nil && self.videoConnection == nil && self.audioDataOutput != nil && self.audioConnection == nil && _videoRecordedResolve == nil && _videoRecordedReject == nil) {
-    
-    [self setupDataConnections];
-    
-    // Todo: Add configurations here - bit-rate, fps, etc
-    
-    //      if (options[@"maxDuration"]) {
-    //        Float64 maxDuration = [options[@"maxDuration"] floatValue];
-    //        self.movieFileOutput.maxRecordedDuration = CMTimeMakeWithSeconds(maxDuration, 30);
-    //      }
-    //
-    //      if (options[@"maxFileSize"]) {
-    //        self.movieFileOutput.maxRecordedFileSize = [options[@"maxFileSize"] integerValue];
-    //      }
-    //
-    if (options[@"quality"]) {
-      [self updateSessionPreset:[RNCameraUtils captureSessionPresetForVideoResolution:(RNCameraVideoResolution)[options[@"quality"] integerValue]]];
+  dispatch_async(self.sessionQueue, ^{
+    if (_videoDataOutput == nil && _audioDataOutput == nil) {
+      [self setupDataFileCapture];
     }
     
-    [self updateSessionAudioIsMuted:!!options[@"mute"]];
-    
-    [self.videoConnection setVideoOrientation:[RNCameraUtils videoOrientationForInterfaceOrientation:[[UIApplication sharedApplication] statusBarOrientation]]];
-    
-    //      if (options[@"codec"]) {
-    //        AVVideoCodecType videoCodecType = options[@"codec"];
-    //        if (@available(iOS 10, *)) {
-    //          if ([self.movieFileOutput.availableVideoCodecTypes containsObject:videoCodecType]) {
-    //            [self.movieFileOutput setOutputSettings:@{AVVideoCodecKey:videoCodecType} forConnection:connection];
-    //            self.videoCodecType = videoCodecType;
-    //          } else {
-    //            RCTLogWarn(@"%s: Video Codec '%@' is not supported on this device.", __func__, videoCodecType);
-    //          }
-    //        } else {
-    //          RCTLogWarn(@"%s: Setting videoCodec is only supported above iOS version 10.", __func__);
-    //        }
-    //      }
-    
-    dispatch_async(self.sessionQueue, ^{
+    if (self.videoDataOutput != nil && self.videoConnection == nil && self.audioDataOutput != nil && self.audioConnection == nil && _videoRecordedResolve == nil && _videoRecordedReject == nil) {
+      
+      [self setupDataConnections];
+      
+      // Todo: Add configurations here - bit-rate, fps, etc
+      
+      //      if (options[@"maxDuration"]) {
+      //        Float64 maxDuration = [options[@"maxDuration"] floatValue];
+      //        self.movieFileOutput.maxRecordedDuration = CMTimeMakeWithSeconds(maxDuration, 30);
+      //      }
+      //
+      //      if (options[@"maxFileSize"]) {
+      //        self.movieFileOutput.maxRecordedFileSize = [options[@"maxFileSize"] integerValue];
+      //      }
+      //
+      if (options[@"quality"]) {
+        [self updateSessionPreset:[RNCameraUtils captureSessionPresetForVideoResolution:(RNCameraVideoResolution)[options[@"quality"] integerValue]]];
+      }
+      
+      [self updateSessionAudioIsMuted:!!options[@"mute"]];
+      
+      [self.videoConnection setVideoOrientation:[RNCameraUtils videoOrientationForInterfaceOrientation:[[UIApplication sharedApplication] statusBarOrientation]]];
+      
+      //      if (options[@"codec"]) {
+      //        AVVideoCodecType videoCodecType = options[@"codec"];
+      //        if (@available(iOS 10, *)) {
+      //          if ([self.movieFileOutput.availableVideoCodecTypes containsObject:videoCodecType]) {
+      //            [self.movieFileOutput setOutputSettings:@{AVVideoCodecKey:videoCodecType} forConnection:connection];
+      //            self.videoCodecType = videoCodecType;
+      //          } else {
+      //            RCTLogWarn(@"%s: Video Codec '%@' is not supported on this device.", __func__, videoCodecType);
+      //          }
+      //        } else {
+      //          RCTLogWarn(@"%s: Setting videoCodec is only supported above iOS version 10.", __func__);
+      //        }
+      //      }
+      
       NSString *path = [RNFileSystem generatePathInDirectory:[[RNFileSystem cacheDirectoryPath] stringByAppendingString:@"Camera"] withExtension:@".mp4"];
       NSURL *outputURL = [[NSURL alloc] initFileURLWithPath:path];
       [self setupAVDataFileWriter:outputURL];
@@ -433,22 +433,39 @@ static NSDictionary *defaultFaceDetectorOptions = nil;
       [self setupAVWriterAudioInput:@{}];
       [self setupAVWriterVideoInput:@{}];
       
+      // start writing
       [self startAVDataWriter];
       
       self.videoRecordedResolve = resolve;
       self.videoRecordedReject = reject;
-    });
-  }
+    }
+  });
 }
 
 - (void)stopRecording
 {
-  [self.dataFileWriter finishWritingWithCompletionHandler:^{
-    self.writingFileData = NO;
-    self.writingFileDataSessionStarted = NO;
-    [self captureOutputStopped];
-  }];
+  dispatch_async(self.writingQueue, ^{
+    [self.dataFileWriter finishWritingWithCompletionHandler:^{
+      @synchronized(self) {
+        [self transitionTo:NO and:NO];
+      }
+    }];
+  });
 }
+
+- (void)transitionTo:(BOOL)writingFileData and:(BOOL)writingFileDataSessionStarted
+{
+  BOOL oldStatus = self.writingFileData;
+  
+  self.writingFileData = writingFileData;
+  self.writingFileDataSessionStarted = writingFileDataSessionStarted;
+  
+  // on finished recording
+  if (oldStatus && !writingFileData) {
+    [self captureOutputStopped];
+  }
+}
+
 
 - (void)startSession
 {
@@ -714,7 +731,17 @@ static NSDictionary *defaultFaceDetectorOptions = nil;
   }
 }
 
-# pragma mark - AVCaptureVideoDataOutput
+# pragma mark - AVCaptureMovieFileOutput
+
+- (void)setupMovieFileCapture
+{
+  AVCaptureMovieFileOutput *movieFileOutput = [[AVCaptureMovieFileOutput alloc] init];
+  
+  if ([self.session canAddOutput:movieFileOutput]) {
+    [self.session addOutput:movieFileOutput];
+    self.movieFileOutput = movieFileOutput;
+  }
+}
 
 - (void)setupDataFileCapture
 {
@@ -749,7 +776,6 @@ static NSDictionary *defaultFaceDetectorOptions = nil;
     [self.session addOutput:audioOut];
     self.audioDataOutput = audioOut;
   }
-  
 }
 
 - (void)setupAVDataFileWriter:(NSURL *)url
@@ -759,18 +785,19 @@ static NSDictionary *defaultFaceDetectorOptions = nil;
 
 - (void)startAVDataWriter
 {
-  [self.dataFileWriter startWriting];
-  self.writingFileData = YES;
+  dispatch_async(self.sessionQueue, ^{
+    [self.dataFileWriter startWriting];
+    @synchronized(self) {
+      [self transitionTo:YES and:NO];
+    }
+  });
 }
 
 - (void)setupAVWriterVideoInput:(NSDictionary *)settings
 {
-  NSMutableDictionary *videoSettings = [[self.videoDataOutput recommendedVideoSettingsForAssetWriterWithOutputFileType:AVFileTypeMPEG4] mutableCopy];
-  if (settings != nil && [settings count] == 0) {
-    [videoSettings addEntriesFromDictionary:settings];
-  }
+  NSDictionary *videoSettings = [self.videoDataOutput recommendedVideoSettingsForAssetWriterWithOutputFileType:AVFileTypeMPEG4];
   if (self.dataFileWriter != nil) {
-    self.videoInput = [[AVAssetWriterInput alloc] initWithMediaType:AVMediaTypeAudio outputSettings:videoSettings];
+    self.videoInput = [[AVAssetWriterInput alloc] initWithMediaType:AVMediaTypeVideo outputSettings:videoSettings];
     self.videoInput.expectsMediaDataInRealTime = YES;
     if ([self.dataFileWriter canAddInput:self.videoInput]) {
       [self.dataFileWriter addInput:self.videoInput];
@@ -782,10 +809,7 @@ static NSDictionary *defaultFaceDetectorOptions = nil;
 
 - (void)setupAVWriterAudioInput:(NSDictionary *)settings
 {
-  NSMutableDictionary *audioSettings = [[self.audioDataOutput recommendedAudioSettingsForAssetWriterWithOutputFileType:AVFileTypeMPEG4] mutableCopy];
-  if (settings != nil && [settings count] == 0) {
-    [audioSettings addEntriesFromDictionary:settings];
-  }
+  NSDictionary *audioSettings = [self.audioDataOutput recommendedAudioSettingsForAssetWriterWithOutputFileType:AVFileTypeMPEG4];
   if (self.dataFileWriter != nil) {
     self.audioInput = [[AVAssetWriterInput alloc] initWithMediaType:AVMediaTypeAudio outputSettings:audioSettings];
     self.audioInput.expectsMediaDataInRealTime = YES;
@@ -814,39 +838,58 @@ static NSDictionary *defaultFaceDetectorOptions = nil;
   _videoConnection = nil;
 }
 
+- (void)cleanupMovieFileCapture
+{
+  if ([_session.outputs containsObject:_movieFileOutput]) {
+    [_session removeOutput:_movieFileOutput];
+    _movieFileOutput = nil;
+  }
+}
+
+// Captures video/audio buffers, not final output
 - (void)captureOutput:(AVCaptureOutput *)captureOutput didOutputSampleBuffer:(nonnull CMSampleBufferRef)sampleBuffer fromConnection:(nonnull AVCaptureConnection *)connection
 {
-  CFRetain(sampleBuffer);
-  NSLog(@"CaptureOutput", self.writingFileData, self.writingFileDataSessionStarted);
   if (self.writingFileData) {
+    NSLog(@"CaptureOutput %d",self.writingFileDataSessionStarted);
     if (!self.writingFileDataSessionStarted){
-      self.writingFileDataSessionStarted = YES;
+      @synchronized(self) {
+        [self transitionTo:YES and:YES];
+      }
       NSLog(@"Starting session at source time called");
       [self.dataFileWriter startSessionAtSourceTime:CMSampleBufferGetPresentationTimeStamp(sampleBuffer)];
     }
+    
+    CFRetain(sampleBuffer);
     dispatch_async(self.writingQueue, ^{
-      if (connection == self.videoConnection) {
-        NSLog(@"Video connection");
-        @autoreleasepool {
-          NSLog(@"Capturing video output");
-          if (self.videoInput.readyForMoreMediaData) {
-            [self.videoInput appendSampleBuffer:sampleBuffer];
-          } else {
-            NSLog(@"Not ready for more media video");
+      @try {
+        if (connection == self.videoConnection) {
+          NSLog(@"Video connection");
+          @autoreleasepool {
+            NSLog(@"Capturing video output");
+            if (self.videoInput.readyForMoreMediaData) {
+              [self.videoInput appendSampleBuffer:sampleBuffer];
+            } else {
+              NSLog(@"Not ready for more media video");
+            }
           }
-        }
-      } else if (connection == self.audioConnection) {
-        NSLog(@"audio connection");
-        @autoreleasepool {
-          NSLog(@"Captuing audio ouptut");
-          if (self.audioInput.readyForMoreMediaData) {
-            [self.audioInput appendSampleBuffer:sampleBuffer];
-          } else {
-            NSLog(@"Not ready for more media audio");
+        } else {
+          NSLog(@"audio connection");
+          @autoreleasepool {
+            NSLog(@"Captuing audio ouptut");
+            if (self.audioInput.readyForMoreMediaData) {
+              [self.audioInput appendSampleBuffer:sampleBuffer];
+            } else {
+              NSLog(@"Not ready for more media audio");
+            }
           }
         }
       }
-      CFRelease(sampleBuffer);
+      @catch(NSException *e) {
+        // lets just ignore, it's possible it's running and we are done recording
+      }
+      @finally {
+        CFRelease(sampleBuffer);
+      }
     });
   }
 }
@@ -867,8 +910,13 @@ static NSDictionary *defaultFaceDetectorOptions = nil;
     //    if (videoCodec == nil) {
     //      videoCodec = [self.movieFileOutput.availableVideoCodecTypes firstObject];
     //    }
-    
-    self.videoRecordedResolve(@{ @"uri": self.dataFileWriter.outputURL.absoluteString, @"codec": @"default" });
+    NSNumber *fileSize = nil;
+    [self.dataFileWriter.outputURL getResourceValue:&fileSize forKey:NSURLFileSizeKey error:nil];
+    NSLog(@"file? %@", self.dataFileWriter.outputURL);
+    NSLog(@"Size? %@", [NSNumber numberWithLong:[fileSize longLongValue]]);
+    self.videoRecordedResolve(@{ @"uri": self.dataFileWriter.outputURL.absoluteString,
+                                 @"size": [NSNumber numberWithLong:[fileSize longLongValue]],
+                                 @"codec": @"default" });
   } else if (self.videoRecordedReject != nil) {
     self.videoRecordedReject(@"E_RECORDING_FAILED", @"An error occurred while recording a video.", error);
   }
@@ -876,7 +924,6 @@ static NSDictionary *defaultFaceDetectorOptions = nil;
   self.videoRecordedReject = nil;
   self.videoCodecType = nil;
   
-  [self cleanupMovieFileCapture];
   [self cleanupDataFileCapture];
   
   // NO need to stop anymore

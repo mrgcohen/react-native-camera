@@ -36,6 +36,9 @@ static NSDictionary *defaultFaceDetectorOptions = nil;
     self.bridge = bridge;
     self.session = [AVCaptureSession new];
     self.sessionQueue = dispatch_queue_create("cameraQueue", DISPATCH_QUEUE_SERIAL);
+    self.writingQueue = dispatch_queue_create("cameraDataFileWriterQueue", DISPATCH_QUEUE_SERIAL);
+    self.videoDataOutputQueue = dispatch_queue_create("cameraVideoDataQueue", DISPATCH_QUEUE_SERIAL);
+    self.audioDataOutputQueue = dispatch_queue_create("cameraAudioDataQueue", DISPATCH_QUEUE_SERIAL);
     self.faceDetectorManager = [self createFaceDetectorManager];
 #if !(TARGET_IPHONE_SIMULATOR)
     self.previewLayer =

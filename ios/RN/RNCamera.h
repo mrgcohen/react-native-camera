@@ -11,15 +11,15 @@
 
 @class RNCamera;
 
-@interface RNCamera : UIView <AVCaptureMetadataOutputObjectsDelegate, AVCaptureFileOutputRecordingDelegate, RNFaceDetectorDelegate>
+@interface RNCamera : UIView <AVCaptureMetadataOutputObjectsDelegate, AVCaptureAudioDataOutputSampleBufferDelegate, AVCaptureVideoDataOutputSampleBufferDelegate, RNFaceDetectorDelegate>
 
 @property(nonatomic, strong) dispatch_queue_t sessionQueue;
 @property(nonatomic, strong) AVCaptureSession *session;
 @property(nonatomic, strong) AVCaptureDeviceInput *videoCaptureDeviceInput;
 @property(nonatomic, strong) AVCaptureStillImageOutput *stillImageOutput;
 @property(nonatomic, strong) AVCaptureMovieFileOutput *movieFileOutput;
-@property(nonatomic, strong) AVCaptureAudioDataOutput *videoDataOutput;
-@property(nonatomic, strong) AVCaptureVideoDataOutput *audioDataOutput;
+@property(nonatomic, strong) AVCaptureVideoDataOutput *videoDataOutput;
+@property(nonatomic, strong) AVCaptureAudioDataOutput *audioDataOutput;
 @property(nonatomic, strong) AVAssetWriterInput *videoInput;
 @property(nonatomic, strong) AVAssetWriterInput *audioInput;
 @property(nonatomic, strong) AVAssetWriter *dataFileWriter;

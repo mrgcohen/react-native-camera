@@ -54,6 +54,7 @@ RCT_EXPORT_VIEW_PROPERTY(onFacesDetected, RCTDirectEventBlock);
                      @"720p": @(RNCameraVideo720p),
                      @"480p": @(RNCameraVideo4x3),
                      @"4:3": @(RNCameraVideo4x3),
+                     @"320p": @(RNCameraVideo320p),
                      },
              @"VideoCodec": [[self class] validCodecTypes],
              @"BarCodeType" : [[self class] validBarCodeTypes],

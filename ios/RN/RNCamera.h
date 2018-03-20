@@ -18,6 +18,16 @@
 @property(nonatomic, strong) AVCaptureDeviceInput *videoCaptureDeviceInput;
 @property(nonatomic, strong) AVCaptureStillImageOutput *stillImageOutput;
 @property(nonatomic, strong) AVCaptureMovieFileOutput *movieFileOutput;
+@property(nonatomic, strong) AVCaptureAudioDataOutput *videoDataOutput;
+@property(nonatomic, strong) AVCaptureVideoDataOutput *audioDataOutput;
+@property(nonatomic, strong) AVAssetWriterInput *videoInput;
+@property(nonatomic, strong) AVAssetWriterInput *audioInput;
+@property(nonatomic, strong) AVAssetWriter *dataFileWriter;
+@property(nonatomic, strong) AVCaptureConnection *videoConnection;
+@property(nonatomic, strong) AVCaptureConnection *audioConnection;
+@property(nonatomic, strong) dispatch_queue_t videoDataOutputQueue;
+@property(nonatomic, strong) dispatch_queue_t audioDataOutputQueue;
+@property(nonatomic, strong) dispatch_queue_t writingQueue;
 @property(nonatomic, strong) AVCaptureMetadataOutput *metadataOutput;
 @property(nonatomic, strong) id runtimeErrorHandlingObserver;
 @property(nonatomic, strong) AVCaptureVideoPreviewLayer *previewLayer;
@@ -31,6 +41,10 @@
 @property (assign, nonatomic) NSInteger whiteBalance;
 @property (nonatomic, assign, getter=isReadingBarCodes) BOOL barCodeReading;
 @property(assign, nonatomic) AVVideoCodecType videoCodecType;
+@property(assign, nonatomic) NSInteger videoWidth;
+@property(assign, nonatomic) NSInteger videoHeight;
+@property(assign, nonatomic) NSInteger averageBitRate;
+@property(assign, nonatomic) NSInteger frameRate;
 
 - (id)initWithBridge:(RCTBridge *)bridge;
 - (void)updateType;

@@ -767,7 +767,15 @@ static NSDictionary *defaultFaceDetectorOptions = nil;
 
 - (void)setupAVWriterVideoInput:(NSDictionary*)options
 {
-  NSDictionary *videoSettings = [self.videoDataOutput recommendedVideoSettingsForAssetWriterWithOutputFileType:AVFileTypeMPEG4];
+  NSMutableDictionary *videoSettings = [[self.videoDataOutput recommendedVideoSettingsForAssetWriterWithOutputFileType:AVFileTypeMPEG4] mutableCopy];
+  
+  if (@available(iOS 10, *)) {
+    // force codec on new devices since new codec has bad support
+    [videoSettings setValue:AVVideoCodecH264 forKey:AVVideoCodecKey];
+    [videoSettings[AVVideoCompressionPropertiesKey] removeObjectForKey:@("SoftMaxQuantizationParameter")];
+    [videoSettings[AVVideoCompressionPropertiesKey] removeObjectForKey:@("SoftMinQuantizationParameter")];
+    [videoSettings[AVVideoCompressionPropertiesKey] setValue:@("H264_Baseline_1_3") forKey:AVVideoProfileLevelKey];
+  }
   
   if (options[@"videoWidth"] && options[@"videoHeight"]) {
     NSDictionary *apertureSettings = @{AVVideoCleanApertureWidthKey: options[@"videoWidth"],

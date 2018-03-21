@@ -41,10 +41,6 @@
 @property (assign, nonatomic) NSInteger whiteBalance;
 @property (nonatomic, assign, getter=isReadingBarCodes) BOOL barCodeReading;
 @property(assign, nonatomic) AVVideoCodecType videoCodecType;
-@property(assign, nonatomic) NSInteger videoWidth;
-@property(assign, nonatomic) NSInteger videoHeight;
-@property(assign, nonatomic) NSInteger averageBitRate;
-@property(assign, nonatomic) NSInteger frameRate;
 
 - (id)initWithBridge:(RCTBridge *)bridge;
 - (void)updateType;

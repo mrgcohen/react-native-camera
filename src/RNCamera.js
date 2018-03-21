@@ -37,6 +37,10 @@ type RecordingOptions = {
   quality?: number | string,
   codec?: string,
   mute?: boolean,
+  videHeight?: number,
+  videoWidth?: number,
+  averageBitRate?: number,
+  framerate?: number,
 };
 
 type EventCallbackArgumentsType = {

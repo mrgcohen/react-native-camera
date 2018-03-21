@@ -774,17 +774,9 @@ static NSDictionary *defaultFaceDetectorOptions = nil;
   if (@available(iOS 10, *)) {
     // force codec on new devices since new codec has bad support
     [videoSettings setValue:AVVideoCodecH264 forKey:AVVideoCodecKey];
-    if ([videoSettings respondsToSelector:@selector(containsValueForKey:)]){
-      if ([videoSettings[AVVideoCompressionPropertiesKey] containsValueForKey:@("SoftMaxQuantizationParameter")]) {
-        [videoSettings[AVVideoCompressionPropertiesKey] removeObjectForKey:@("SoftMaxQuantizationParameter")];
-      }
-      if ([videoSettings[AVVideoCompressionPropertiesKey] containsValueForKey:@("SoftMinQuantizationParameter")]) {
-        [videoSettings[AVVideoCompressionPropertiesKey] removeObjectForKey:@("SoftMinQuantizationParameter")];
-      }
-    }
-    if ([videoSettings[AVVideoCompressionPropertiesKey] respondsToSelector:@selector(setValue:forKey:)]){
-      [videoSettings[AVVideoCompressionPropertiesKey] setValue:@("H264_Baseline_1_3") forKey:AVVideoProfileLevelKey];
-    }
+    [videoSettings[AVVideoCompressionPropertiesKey] removeObjectForKey:@("SoftMaxQuantizationParameter")];
+    [videoSettings[AVVideoCompressionPropertiesKey] removeObjectForKey:@("SoftMinQuantizationParameter")];
+    [videoSettings[AVVideoCompressionPropertiesKey] setValue:@("H264_Baseline_1_3") forKey:AVVideoProfileLevelKey];
   }
   
   if (options[@"videoWidth"] && options[@"videoHeight"]) {

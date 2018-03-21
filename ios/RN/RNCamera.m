@@ -769,20 +769,30 @@ static NSDictionary *defaultFaceDetectorOptions = nil;
 {
   NSMutableDictionary *videoSettings = [[self.videoDataOutput recommendedVideoSettingsForAssetWriterWithOutputFileType:AVFileTypeMPEG4] mutableCopy];
   
+  [videoSettings setValue:[videoSettings[AVVideoCompressionPropertiesKey] mutableCopy] forKey:AVVideoCompressionPropertiesKey];
+  
   if (@available(iOS 10, *)) {
     // force codec on new devices since new codec has bad support
     [videoSettings setValue:AVVideoCodecH264 forKey:AVVideoCodecKey];
-    [videoSettings[AVVideoCompressionPropertiesKey] removeObjectForKey:@("SoftMaxQuantizationParameter")];
-    [videoSettings[AVVideoCompressionPropertiesKey] removeObjectForKey:@("SoftMinQuantizationParameter")];
-    [videoSettings[AVVideoCompressionPropertiesKey] setValue:@("H264_Baseline_1_3") forKey:AVVideoProfileLevelKey];
+    if ([videoSettings respondsToSelector:@selector(containsValueForKey:)]){
+      if ([videoSettings[AVVideoCompressionPropertiesKey] containsValueForKey:@("SoftMaxQuantizationParameter")]) {
+        [videoSettings[AVVideoCompressionPropertiesKey] removeObjectForKey:@("SoftMaxQuantizationParameter")];
+      }
+      if ([videoSettings[AVVideoCompressionPropertiesKey] containsValueForKey:@("SoftMinQuantizationParameter")]) {
+        [videoSettings[AVVideoCompressionPropertiesKey] removeObjectForKey:@("SoftMinQuantizationParameter")];
+      }
+    }
+    if ([videoSettings[AVVideoCompressionPropertiesKey] respondsToSelector:@selector(setValue:forKey:)]){
+      [videoSettings[AVVideoCompressionPropertiesKey] setValue:@("H264_Baseline_1_3") forKey:AVVideoProfileLevelKey];
+    }
   }
   
   if (options[@"videoWidth"] && options[@"videoHeight"]) {
-    NSDictionary *apertureSettings = @{AVVideoCleanApertureWidthKey: options[@"videoWidth"],
-                                       AVVideoCleanApertureHeightKey: options[@"videoHeight"],
-                                       AVVideoCleanApertureHorizontalOffsetKey: @(0),
-                                       AVVideoCleanApertureVerticalOffsetKey: @(0)
-                                       };
+    NSMutableDictionary *apertureSettings = @{AVVideoCleanApertureWidthKey: options[@"videoWidth"],
+                                              AVVideoCleanApertureHeightKey: options[@"videoHeight"],
+                                              AVVideoCleanApertureHorizontalOffsetKey: @(0),
+                                              AVVideoCleanApertureVerticalOffsetKey: @(0)
+                                              };
     [videoSettings setValue:options[@"videoWidth"] forKey:AVVideoWidthKey];
     [videoSettings setValue:options[@"videoHeight"] forKey:AVVideoHeightKey];
     [videoSettings setValue:apertureSettings forKey:AVVideoCleanApertureKey];

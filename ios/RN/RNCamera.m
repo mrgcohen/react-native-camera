@@ -811,32 +811,36 @@ static NSDictionary *defaultFaceDetectorOptions = nil;
 
 - (void)cleanupDataFileCapture
 {
-  if ([_session.outputs containsObject:_videoDataOutput]) {
-    [_session removeOutput:_videoDataOutput];
-    _videoDataOutput = nil;
-  }
-  if ([_session.outputs containsObject:_audioDataOutput]) {
-    [_session removeOutput:_audioDataOutput];
-    _audioDataOutput = nil;
-  }
-  _audioInput = nil;
-  _videoInput = nil;
-  _dataFileWriter = nil;
-  _audioConnection = nil;
-  _videoConnection = nil;
+  dispatch_async(self.writingQueue, ^{
+    @autoreleasepool {
+      if ([_session.outputs containsObject:_videoDataOutput]) {
+        [_session removeOutput:_videoDataOutput];
+        _videoDataOutput = nil;
+      }
+      if ([_session.outputs containsObject:_audioDataOutput]) {
+        [_session removeOutput:_audioDataOutput];
+        _audioDataOutput = nil;
+      }
+      _audioInput = nil;
+      _videoInput = nil;
+      _dataFileWriter = nil;
+      _audioConnection = nil;
+      _videoConnection = nil;
+    }
+  });
 }
 
 - (void)captureOutput:(AVCaptureOutput *)captureOutput didOutputSampleBuffer:(nonnull CMSampleBufferRef)sampleBuffer fromConnection:(nonnull AVCaptureConnection *)connection
 {
-  if (self.writingFileData) {
-    if (!self.writingFileDataSessionStarted){
-      [self transitionTo:YES and:YES];
-      [self.dataFileWriter startSessionAtSourceTime:CMSampleBufferGetPresentationTimeStamp(sampleBuffer)];
-    }
-    
-    CFRetain(sampleBuffer);
-    dispatch_async(self.writingQueue, ^{
-      @autoreleasepool {
+  CFRetain(sampleBuffer);
+  dispatch_async(self.writingQueue, ^{
+    @autoreleasepool {
+      if (self.writingFileData) {
+        if (!self.writingFileDataSessionStarted){
+          [self transitionTo:YES and:YES];
+          [self.dataFileWriter startSessionAtSourceTime:CMSampleBufferGetPresentationTimeStamp(sampleBuffer)];
+        }
+        
         @try {
           if (connection.output == self.videoDataOutput) {
             if (self.videoInput.readyForMoreMediaData) {
@@ -855,8 +859,8 @@ static NSDictionary *defaultFaceDetectorOptions = nil;
           CFRelease(sampleBuffer);
         }
       }
-    });
-  }
+    }
+  });
 }
 
 - (void)captureOutputStopped
@@ -902,9 +906,7 @@ static NSDictionary *defaultFaceDetectorOptions = nil;
   
   self.videoCodecType = nil;
   
-  dispatch_async(self.sessionQueue, ^{
-    [self cleanupDataFileCapture];
-  });
+  [self cleanupDataFileCapture];
   
   // NO need to stop anymore
   // If face detection has been running prior to recording to file

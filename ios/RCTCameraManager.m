@@ -1288,19 +1288,6 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
   }
 }
 
-- (void)setCaptureQuality:(NSString *)quality
-{
-#if !(TARGET_IPHONE_SIMULATOR)
-  if (quality) {
-    [self.session beginConfiguration];
-    if ([self.session canSetSessionPreset:quality]) {
-      self.session.sessionPreset = quality;
-    }
-    [self.session commitConfiguration];
-  }
-#endif
-}
-
 // call under @synchonized( self )
 - (void)transitionToRecordingStatus:(RecordingStatus)newStatus error:(NSError *)error
 {

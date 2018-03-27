@@ -1068,10 +1068,7 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
           }
         }
       }
-      //dispatch_async(dispatch_get_main_queue(), ^{
       CFRelease(sampleBuffer);
-      //});
-      
     });
   }
 }

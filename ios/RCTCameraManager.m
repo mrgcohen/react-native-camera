@@ -917,26 +917,26 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
     }
     // setup video and audio writers
     // video settings
-    NSDictionary *videoSettings = [self.videoDataOutput recommendedVideoSettingsForAssetWriterWithOutputFileType:AVFileTypeMPEG4];
+    NSMutableDictionary *videoSettings = [[self.videoDataOutput recommendedVideoSettingsForAssetWriterWithOutputFileType:AVFileTypeMPEG4] mutableCopy];
+    [videoSettings setValue:[videoSettings[AVVideoCompressionPropertiesKey] mutableCopy] forKey:AVVideoCompressionPropertiesKey];
     if (_videoWidth && _videoHeight) {
-      NSDictionary *apertureSettings = @{AVVideoCleanApertureWidthKey: @([_videoWidth integerValue]),
-                                         AVVideoCleanApertureHeightKey: @([_videoHeight integerValue]),
-                                         AVVideoCleanApertureHorizontalOffsetKey: @(0),
-                                         AVVideoCleanApertureVerticalOffsetKey: @(0)
-                                         };
-      [videoSettings setValue:@([_videoWidth integerValue]) forKey:AVVideoWidthKey];
-      [videoSettings setValue:@([_videoHeight integerValue]) forKey:AVVideoHeightKey];
+      NSMutableDictionary *apertureSettings = @{AVVideoCleanApertureWidthKey: _videoWidth,
+                                                AVVideoCleanApertureHeightKey:_videoHeight,
+                                                AVVideoCleanApertureHorizontalOffsetKey: @(0),
+                                                AVVideoCleanApertureVerticalOffsetKey: @(0)};
+      [videoSettings setValue:_videoWidth forKey:AVVideoWidthKey];
+      [videoSettings setValue:_videoHeight forKey:AVVideoHeightKey];
       [videoSettings setValue:apertureSettings forKey:AVVideoCleanApertureKey];
     }
     if (_averageBitRate) {
-      [videoSettings[AVVideoCompressionPropertiesKey] setValue:@([_averageBitRate integerValue]) forKey:AVVideoAverageBitRateKey];
+      [videoSettings[AVVideoCompressionPropertiesKey] setValue:_averageBitRate forKey:AVVideoAverageBitRateKey];
     }
     
     if (_frameRate) {
-      [videoSettings[AVVideoCompressionPropertiesKey] setValue:@([_frameRate integerValue]) forKey:AVVideoExpectedSourceFrameRateKey];
+      [videoSettings[AVVideoCompressionPropertiesKey] setValue:_frameRate forKey:AVVideoExpectedSourceFrameRateKey];
     }
-    NSLog(@"Assetwriter %@", videoSettings);
     
+    NSLog(@"Assetwriter %@", videoSettings);
     _assetWriter = [AVAssetWriter assetWriterWithURL:outputURL fileType:AVFileTypeMPEG4 error:nil];
     _videoInput = [[AVAssetWriterInput alloc] initWithMediaType:AVMediaTypeVideo outputSettings: videoSettings];
     _videoInput.expectsMediaDataInRealTime = YES;
@@ -1016,13 +1016,10 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
       [_assetWriter startSessionAtSourceTime:CMSampleBufferGetPresentationTimeStamp(sampleBuffer)];
     }
     dispatch_async( _writingQueue, ^{
-      NSLog(@"connection matches?? %@ %@", connection.output, self.videoDataOutput);
       if (connection.output == [self videoDataOutput]) {
-        NSLog(@"Video connection");
         @autoreleasepool {
           @synchronized(self) {
             if (_recordingStatus == Recording) {
-              NSLog(@"Capturing video output");
               if (_videoInput.readyForMoreMediaData) {
                 [_videoInput appendSampleBuffer:sampleBuffer];
               } else {
@@ -1032,11 +1029,9 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
           }
         }
       } else if (connection.output == [self audioDataOutput]) {
-        NSLog(@"audio connection");
         @autoreleasepool {
           @synchronized(self) {
             if (_recordingStatus == Recording) {
-              NSLog(@"Captuing audio ouptut");
               if (_audioInput.readyForMoreMediaData) {
                 [_audioInput appendSampleBuffer:sampleBuffer];
               } else {
@@ -1056,7 +1051,6 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
 
 - (void)captureOutput:(AVCaptureFileOutput *)captureOutput didFinishRecordingToOutputFileAtURL:(NSURL *)outputFileURL fromConnections:(NSArray *)connections error:(NSError *)error
 {
-  NSLog(@"CApture file output called");
   BOOL recordSuccess = YES;
   if ([error code] != noErr) {
     // A problem occurred: Find out if the recording was successful.

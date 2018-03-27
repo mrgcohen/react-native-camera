@@ -1331,8 +1331,6 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
       [self handleFinishedRecording];
     }
   }
-  
-  // now write back to react native
 }
 
 - (void)tearDownWriters
@@ -1361,7 +1359,6 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
                                                                                    @"duration":[NSNumber numberWithFloat:CMTimeGetSeconds(videoAsAsset.duration)],
                                                                                    @"size":[NSNumber numberWithLong:[filesize longLongValue]],
                                                                                    }];
-  
   if ([videoTracks count] > 0) {;
     videoTrack = [videoTracks objectAtIndex:0];
     

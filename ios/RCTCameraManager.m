@@ -44,6 +44,7 @@ typedef NS_ENUM( NSInteger, RecordingStatus )
   NSNumber *_videoHeight;
   NSNumber *_averageBitRate;
   NSNumber *_frameRate;
+  NSString *_videoProfile;
 }
 
 @property (strong, nonatomic) RCTSensorOrientationChecker * sensorOrientationChecker;
@@ -205,6 +206,7 @@ RCT_CUSTOM_VIEW_PROPERTY(captureQuality, NSInteger, RCTCamera) {
       _videoHeight = [NSNumber numberWithInteger:240];
       _frameRate = [NSNumber numberWithInteger:24];
       _averageBitRate = [NSNumber numberWithInteger:161000];
+      _videoProfile = @"H264_Baseline_1_3";
       break;
   }
   
@@ -337,7 +339,7 @@ RCT_CUSTOM_VIEW_PROPERTY(mirrorImage, BOOL, RCTCamera) {
 }
 
 RCT_CUSTOM_VIEW_PROPERTY(cropToPreview, BOOL, RCTCamera) {
-    self.cropToPreview = [RCTConvert BOOL:json];
+  self.cropToPreview = [RCTConvert BOOL:json];
 }
 
 RCT_CUSTOM_VIEW_PROPERTY(barCodeTypes, NSArray, RCTCamera) {
@@ -436,24 +438,24 @@ RCT_EXPORT_METHOD(capture:(NSDictionary *)options
 
 RCT_EXPORT_METHOD(stopPreview) {
 #if TARGET_IPHONE_SIMULATOR
-    return;
+  return;
 #endif
-    dispatch_async(self.sessionQueue, ^{
-        if ([self.session isRunning]) {
-            [self.session stopRunning];
-        }
-    });
+  dispatch_async(self.sessionQueue, ^{
+    if ([self.session isRunning]) {
+      [self.session stopRunning];
+    }
+  });
 }
 
 RCT_EXPORT_METHOD(startPreview) {
 #if TARGET_IPHONE_SIMULATOR
-    return;
+  return;
 #endif
-    dispatch_async(self.sessionQueue, ^{
-        if (![self.session isRunning]) {
-            [self.session startRunning];
-        }
-    });
+  dispatch_async(self.sessionQueue, ^{
+    if (![self.session isRunning]) {
+      [self.session startRunning];
+    }
+  });
 }
 
 RCT_EXPORT_METHOD(stopCapture) {
@@ -550,7 +552,7 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
     [videoOut setSampleBufferDelegate:self queue:_videoDataOutputQueue];
     videoOut.alwaysDiscardsLateVideoFrames = NO;
     if ([self.session canAddOutput:videoOut]){
-      NSLog(@"ADding output for video file output");
+      NSLog(@"Adding output for video file output");
       [self.session addOutput:videoOut];
       self.videoDataOutput = videoOut;
     }
@@ -917,17 +919,39 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
     }
     // setup video and audio writers
     // video settings
+    
     NSMutableDictionary *videoSettings = [[self.videoDataOutput recommendedVideoSettingsForAssetWriterWithOutputFileType:AVFileTypeMPEG4] mutableCopy];
     [videoSettings setValue:[videoSettings[AVVideoCompressionPropertiesKey] mutableCopy] forKey:AVVideoCompressionPropertiesKey];
+    
+    NSLog(@"Base Video Settings %@", videoSettings);
+    
+    if (@available(iOS 11, *)) {
+      NSLog(@"Force codec");
+      // force codec on new devices since new codec has bad support
+      [videoSettings setValue:AVVideoCodecH264 forKey:AVVideoCodecKey];
+      [videoSettings[AVVideoCompressionPropertiesKey] removeObjectForKey:@("SoftMaxQuantizationParameter")];
+      [videoSettings[AVVideoCompressionPropertiesKey] removeObjectForKey:@("SoftMinQuantizationParameter")];
+      if (!_videoProfile) {
+        _videoProfile = AVVideoProfileLevelH264Main30;
+      }
+    }
+    
+    if (_videoProfile) {
+      NSLog(@"Set video profile %@", _videoProfile);
+      [videoSettings[AVVideoCompressionPropertiesKey] setValue:_videoProfile forKey:AVVideoProfileLevelKey];
+    }
+    
     if (_videoWidth && _videoHeight) {
-      NSMutableDictionary *apertureSettings = @{AVVideoCleanApertureWidthKey: _videoWidth,
-                                                AVVideoCleanApertureHeightKey:_videoHeight,
-                                                AVVideoCleanApertureHorizontalOffsetKey: @(0),
-                                                AVVideoCleanApertureVerticalOffsetKey: @(0)};
+      NSMutableDictionary *apertureSettings = [NSMutableDictionary dictionaryWithDictionary:
+                                               @{AVVideoCleanApertureWidthKey: _videoWidth,
+                                                 AVVideoCleanApertureHeightKey:_videoHeight,
+                                                 AVVideoCleanApertureHorizontalOffsetKey: @(0),
+                                                 AVVideoCleanApertureVerticalOffsetKey: @(0)}];
       [videoSettings setValue:_videoWidth forKey:AVVideoWidthKey];
       [videoSettings setValue:_videoHeight forKey:AVVideoHeightKey];
       [videoSettings setValue:apertureSettings forKey:AVVideoCleanApertureKey];
     }
+    
     if (_averageBitRate) {
       [videoSettings[AVVideoCompressionPropertiesKey] setValue:_averageBitRate forKey:AVVideoAverageBitRateKey];
     }
@@ -936,7 +960,7 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
       [videoSettings[AVVideoCompressionPropertiesKey] setValue:_frameRate forKey:AVVideoExpectedSourceFrameRateKey];
     }
     
-    NSLog(@"Assetwriter %@", videoSettings);
+    NSLog(@"Final AssetWriter Setttings %@", videoSettings);
     _assetWriter = [AVAssetWriter assetWriterWithURL:outputURL fileType:AVFileTypeMPEG4 error:nil];
     _videoInput = [[AVAssetWriterInput alloc] initWithMediaType:AVMediaTypeVideo outputSettings: videoSettings];
     _videoInput.expectsMediaDataInRealTime = YES;
@@ -1017,9 +1041,11 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
     }
     dispatch_async( _writingQueue, ^{
       if (connection.output == [self videoDataOutput]) {
+        // usually if it doesn't get here there's something werid with the video settings
         @autoreleasepool {
           @synchronized(self) {
             if (_recordingStatus == Recording) {
+              NSLog(@"Capturing video output");
               if (_videoInput.readyForMoreMediaData) {
                 [_videoInput appendSampleBuffer:sampleBuffer];
               } else {
@@ -1032,6 +1058,7 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
         @autoreleasepool {
           @synchronized(self) {
             if (_recordingStatus == Recording) {
+              NSLog(@"Capturing audio ouptut");
               if (_audioInput.readyForMoreMediaData) {
                 [_audioInput appendSampleBuffer:sampleBuffer];
               } else {
@@ -1051,6 +1078,7 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
 
 - (void)captureOutput:(AVCaptureFileOutput *)captureOutput didFinishRecordingToOutputFileAtURL:(NSURL *)outputFileURL fromConnections:(NSArray *)connections error:(NSError *)error
 {
+  NSLog(@"CApture file output called");
   BOOL recordSuccess = YES;
   if ([error code] != noErr) {
     // A problem occurred: Find out if the recording was successful.
@@ -1104,7 +1132,7 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
                                       self.videoReject(RCTErrorUnspecified, nil, RCTErrorWithMessage(@"Not enough storage"));
                                       return;
                                     }
-
+                                    
                                     [videoInfo setObject:[assetURL absoluteString] forKey:@"path"];
                                     self.videoResolve(videoInfo);
                                   }];
@@ -1316,7 +1344,11 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
 
 - (void)handleFinishedRecording
 {
+  AVAssetTrack *videoTrack;
   NSURL *url = _assetWriter.outputURL;
+  float videoWidth;
+  float videoHeight;
+  
   [self tearDownWriters];
   
   AVURLAsset* videoAsAsset = [AVURLAsset URLAssetWithURL:url options:nil];
@@ -1324,32 +1356,30 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
   // set file size
   [url getResourceValue:&filesize forKey:NSURLFileSizeKey error:nil];
   NSLog(@"size %@", filesize);
-  AVAssetTrack* videoTrack = [[videoAsAsset tracksWithMediaType:AVMediaTypeVideo] objectAtIndex:0];
-  float videoWidth;
-  float videoHeight;
-  
-  NSLog(@"handle finished recording");
-  
-  
-  CGSize videoSize = [videoTrack naturalSize];
-  CGAffineTransform txf = [videoTrack preferredTransform];
-  
-  if ((txf.tx == videoSize.width && txf.ty == videoSize.height) || (txf.tx == 0 && txf.ty == 0)) {
-    // Video recorded in landscape orientation
-    videoWidth = videoSize.width;
-    videoHeight = videoSize.height;
-  } else {
-    // Video recorded in portrait orientation, so have to swap reported width/height
-    videoWidth = videoSize.height;
-    videoHeight = videoSize.width;
-  }
-  
+  NSArray* videoTracks = [videoAsAsset tracksWithMediaType:AVMediaTypeVideo];
   NSMutableDictionary *videoInfo = [NSMutableDictionary dictionaryWithDictionary:@{
                                                                                    @"duration":[NSNumber numberWithFloat:CMTimeGetSeconds(videoAsAsset.duration)],
-                                                                                   @"width":[NSNumber numberWithFloat:videoWidth],
-                                                                                   @"height":[NSNumber numberWithFloat:videoHeight],
                                                                                    @"size":[NSNumber numberWithLong:[filesize longLongValue]],
                                                                                    }];
+  
+  if ([videoTracks count] > 0) {;
+    videoTrack = [videoTracks objectAtIndex:0];
+    
+    CGSize videoSize = [videoTrack naturalSize];
+    CGAffineTransform txf = [videoTrack preferredTransform];
+    
+    if ((txf.tx == videoSize.width && txf.ty == videoSize.height) || (txf.tx == 0 && txf.ty == 0)) {
+      // Video recorded in landscape orientation
+      videoWidth = videoSize.width;
+      videoHeight = videoSize.height;
+    } else {
+      // Video recorded in portrait orientation, so have to swap reported width/height
+      videoWidth = videoSize.height;
+      videoHeight = videoSize.width;
+    }
+    [videoInfo setValue:[NSNumber numberWithFloat:videoWidth] forKey:@"width"];
+    [videoInfo setValue:[NSNumber numberWithFloat:videoHeight] forKey:@"height"];
+  }
   
   NSLog(@"videoinfo %@", videoInfo);
   

@@ -1282,30 +1282,30 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
   // set file size
   [url getResourceValue:&filesize forKey:NSURLFileSizeKey error:nil];
   NSLog(@"size %@", filesize);
-  //AVAssetTrack* videoTrack = [[videoAsAsset tracksWithMediaType:AVMediaTypeVideo] objectAtIndex:0];
-  //  float videoWidth;
-  //  float videoHeight;
-  //
-  //  NSLog(@"handle finished recording");
-  //
-  //
-  //  CGSize videoSize = [videoTrack naturalSize];
-  //  CGAffineTransform txf = [videoTrack preferredTransform];
-  //
-  //  if ((txf.tx == videoSize.width && txf.ty == videoSize.height) || (txf.tx == 0 && txf.ty == 0)) {
-  //    // Video recorded in landscape orientation
-  //    videoWidth = videoSize.width;
-  //    videoHeight = videoSize.height;
-  //  } else {
-  //    // Video recorded in portrait orientation, so have to swap reported width/height
-  //    videoWidth = videoSize.height;
-  //    videoHeight = videoSize.width;
-  //  }
+  AVAssetTrack* videoTrack = [[videoAsAsset tracksWithMediaType:AVMediaTypeVideo] objectAtIndex:0];
+  float videoWidth;
+  float videoHeight;
+  
+  NSLog(@"handle finished recording");
+  
+  
+  CGSize videoSize = [videoTrack naturalSize];
+  CGAffineTransform txf = [videoTrack preferredTransform];
+  
+  if ((txf.tx == videoSize.width && txf.ty == videoSize.height) || (txf.tx == 0 && txf.ty == 0)) {
+    // Video recorded in landscape orientation
+    videoWidth = videoSize.width;
+    videoHeight = videoSize.height;
+  } else {
+    // Video recorded in portrait orientation, so have to swap reported width/height
+    videoWidth = videoSize.height;
+    videoHeight = videoSize.width;
+  }
   
   NSMutableDictionary *videoInfo = [NSMutableDictionary dictionaryWithDictionary:@{
                                                                                    @"duration":[NSNumber numberWithFloat:CMTimeGetSeconds(videoAsAsset.duration)],
-                                                                                   //                                                                                   @"width":[NSNumber numberWithFloat:videoWidth],
-                                                                                   //                                                                                   @"height":[NSNumber numberWithFloat:videoHeight],
+                                                                                   @"width":[NSNumber numberWithFloat:videoWidth],
+                                                                                   @"height":[NSNumber numberWithFloat:videoHeight],
                                                                                    @"size":[NSNumber numberWithLong:[filesize longLongValue]],
                                                                                    }];
   
@@ -1442,3 +1442,4 @@ static CGFloat angleOffsetFromPortraitOrientationToOrientation(AVCaptureVideoOri
 }
 
 @end
+

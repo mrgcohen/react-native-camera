@@ -206,7 +206,7 @@ RCT_CUSTOM_VIEW_PROPERTY(captureQuality, NSInteger, RCTCamera) {
       _videoHeight = [NSNumber numberWithInteger:240];
       _frameRate = [NSNumber numberWithInteger:24];
       _averageBitRate = [NSNumber numberWithInteger:161000];
-      _videoProfile = @"H264_Baseline_1_3";
+      _videoProfile = AVVideoProfileLevelH264Main30;
       break;
   }
   
@@ -883,6 +883,51 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
   }
 }
 
+-(NSMutableDictionary*)getVideoSettings
+{
+  // grab base video settings (based on quality preset)
+  NSMutableDictionary *videoSettings = [[self.videoDataOutput recommendedVideoSettingsForAssetWriterWithOutputFileType:AVFileTypeMPEG4] mutableCopy];
+  // setup so mutable
+  [videoSettings setValue:[videoSettings[AVVideoCompressionPropertiesKey] mutableCopy] forKey:AVVideoCompressionPropertiesKey];
+  
+  NSLog(@"Base Video Settings %@", videoSettings);
+  
+  if (@available(iOS 11, *)) {
+    // force codec on new devices since new codec has bad support
+    [videoSettings setValue:AVVideoCodecH264 forKey:AVVideoCodecKey];
+    [videoSettings[AVVideoCompressionPropertiesKey] removeObjectForKey:@("SoftMaxQuantizationParameter")];
+    [videoSettings[AVVideoCompressionPropertiesKey] removeObjectForKey:@("SoftMinQuantizationParameter")];
+    // if no profile found lets default to AVVideoProfileLevelH264Main30
+    if (!_videoProfile) {
+      _videoProfile = AVVideoProfileLevelH264Main30;
+    }
+  }
+  
+  if (_videoProfile) {
+    [videoSettings[AVVideoCompressionPropertiesKey] setValue:_videoProfile forKey:AVVideoProfileLevelKey];
+  }
+  
+  if (_videoWidth && _videoHeight) {
+    NSMutableDictionary *apertureSettings = [NSMutableDictionary dictionaryWithDictionary:
+                                             @{AVVideoCleanApertureWidthKey: _videoWidth,
+                                               AVVideoCleanApertureHeightKey:_videoHeight,
+                                               AVVideoCleanApertureHorizontalOffsetKey: @(0),
+                                               AVVideoCleanApertureVerticalOffsetKey: @(0)}];
+    [videoSettings setValue:_videoWidth forKey:AVVideoWidthKey];
+    [videoSettings setValue:_videoHeight forKey:AVVideoHeightKey];
+    [videoSettings setValue:apertureSettings forKey:AVVideoCleanApertureKey];
+  }
+  
+  if (_averageBitRate) {
+    [videoSettings[AVVideoCompressionPropertiesKey] setValue:_averageBitRate forKey:AVVideoAverageBitRateKey];
+  }
+  
+  if (_frameRate) {
+    [videoSettings[AVVideoCompressionPropertiesKey] setValue:_frameRate forKey:AVVideoExpectedSourceFrameRateKey];
+  }
+  return videoSettings;
+}
+
 -(void)captureVideo:(NSInteger)target options:(NSDictionary *)options orientation:(AVCaptureVideoOrientation)orientation resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject
 {
   if (_recordingStatus == Recording) {
@@ -897,12 +942,13 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
     [self initializeCaptureSessionInput:AVMediaTypeAudio];
   }
   
-  Float64 totalSeconds = [[options valueForKey:@"totalSeconds"] floatValue];
-  if (totalSeconds > -1) {
-    int32_t preferredTimeScale = [[options valueForKey:@"preferredTimeScale"] intValue];
-    CMTime maxDuration = CMTimeMakeWithSeconds(totalSeconds, preferredTimeScale);
-    //self.movieFileOutput.maxRecordedDuration = maxDuration;
-  }
+  //  TODO: This has not been converted over, currently not being used
+  //  Float64 totalSeconds = [[options valueForKey:@"totalSeconds"] floatValue];
+  //  if (totalSeconds > -1) {
+  //    int32_t preferredTimeScale = [[options valueForKey:@"preferredTimeScale"] intValue];
+  //    CMTime maxDuration = CMTimeMakeWithSeconds(totalSeconds, preferredTimeScale);
+  //    //self.movieFileOutput.maxRecordedDuration = maxDuration;
+  //  }
   
   dispatch_async(self.sessionQueue, ^{
     // Create temporary URL to record to (mp4)
@@ -918,49 +964,8 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
       }
     }
     // setup video and audio writers
-    // video settings
-    
-    NSMutableDictionary *videoSettings = [[self.videoDataOutput recommendedVideoSettingsForAssetWriterWithOutputFileType:AVFileTypeMPEG4] mutableCopy];
-    [videoSettings setValue:[videoSettings[AVVideoCompressionPropertiesKey] mutableCopy] forKey:AVVideoCompressionPropertiesKey];
-    
-    NSLog(@"Base Video Settings %@", videoSettings);
-    
-    if (@available(iOS 11, *)) {
-      NSLog(@"Force codec");
-      // force codec on new devices since new codec has bad support
-      [videoSettings setValue:AVVideoCodecH264 forKey:AVVideoCodecKey];
-      [videoSettings[AVVideoCompressionPropertiesKey] removeObjectForKey:@("SoftMaxQuantizationParameter")];
-      [videoSettings[AVVideoCompressionPropertiesKey] removeObjectForKey:@("SoftMinQuantizationParameter")];
-      if (!_videoProfile) {
-        _videoProfile = AVVideoProfileLevelH264Main30;
-      }
-    }
-    
-    if (_videoProfile) {
-      NSLog(@"Set video profile %@", _videoProfile);
-      [videoSettings[AVVideoCompressionPropertiesKey] setValue:_videoProfile forKey:AVVideoProfileLevelKey];
-    }
-    
-    if (_videoWidth && _videoHeight) {
-      NSMutableDictionary *apertureSettings = [NSMutableDictionary dictionaryWithDictionary:
-                                               @{AVVideoCleanApertureWidthKey: _videoWidth,
-                                                 AVVideoCleanApertureHeightKey:_videoHeight,
-                                                 AVVideoCleanApertureHorizontalOffsetKey: @(0),
-                                                 AVVideoCleanApertureVerticalOffsetKey: @(0)}];
-      [videoSettings setValue:_videoWidth forKey:AVVideoWidthKey];
-      [videoSettings setValue:_videoHeight forKey:AVVideoHeightKey];
-      [videoSettings setValue:apertureSettings forKey:AVVideoCleanApertureKey];
-    }
-    
-    if (_averageBitRate) {
-      [videoSettings[AVVideoCompressionPropertiesKey] setValue:_averageBitRate forKey:AVVideoAverageBitRateKey];
-    }
-    
-    if (_frameRate) {
-      [videoSettings[AVVideoCompressionPropertiesKey] setValue:_frameRate forKey:AVVideoExpectedSourceFrameRateKey];
-    }
-    
-    NSLog(@"Final AssetWriter Setttings %@", videoSettings);
+    NSMutableDictionary *videoSettings = [self getVideoSettings];
+    NSLog(@"Assetwriter %@", videoSettings);
     _assetWriter = [AVAssetWriter assetWriterWithURL:outputURL fileType:AVFileTypeMPEG4 error:nil];
     _videoInput = [[AVAssetWriterInput alloc] initWithMediaType:AVMediaTypeVideo outputSettings: videoSettings];
     _videoInput.expectsMediaDataInRealTime = YES;
@@ -1107,12 +1112,12 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
     videoHeight = videoSize.width;
   }
   
-  NSMutableDictionary *videoInfo = [NSMutableDictionary dictionaryWithDictionary:@{
-                                                                                   @"duration":[NSNumber numberWithFloat:CMTimeGetSeconds(videoAsAsset.duration)],
-                                                                                   @"width":[NSNumber numberWithFloat:videoWidth],
-                                                                                   @"height":[NSNumber numberWithFloat:videoHeight],
-                                                                                   @"size":[NSNumber numberWithLongLong:captureOutput.recordedFileSize],
-                                                                                   }];
+  NSMutableDictionary *videoInfo = [NSMutableDictionary
+                                    dictionaryWithDictionary:@{@"duration":[NSNumber numberWithFloat:CMTimeGetSeconds(videoAsAsset.duration)],
+                                                               @"width":[NSNumber numberWithFloat:videoWidth],
+                                                               @"height":[NSNumber numberWithFloat:videoHeight],
+                                                               @"size":[NSNumber numberWithLongLong:captureOutput.recordedFileSize]
+                                                               }];
   
   if (self.videoTarget == RCTCameraCaptureTargetCameraRoll) {
     ALAssetsLibrary *library = [[ALAssetsLibrary alloc] init];

@@ -184,6 +184,7 @@ public class RCTCameraModule extends ReactContextBaseJavaModule
                 return Collections.unmodifiableMap(new HashMap<String, Object>() {
                     {
                         put("low", RCT_CAMERA_CAPTURE_QUALITY_LOW);
+                        put("ok", RCT_CAMERA_CAPTURE_QUALITY_OK);
                         put("medium", RCT_CAMERA_CAPTURE_QUALITY_MEDIUM);
                         put("high", RCT_CAMERA_CAPTURE_QUALITY_HIGH);
                         put("photo", RCT_CAMERA_CAPTURE_QUALITY_HIGH);

@@ -35,7 +35,6 @@ typedef NS_ENUM( NSInteger, RecordingStatus )
   
   BOOL _startedSession;
   BOOL _startedTime;
-  AVCaptureSession *_session;
   
   AVCaptureVideoOrientation _videoBufferOrientation;
   
@@ -64,9 +63,9 @@ RCT_EXPORT_MODULE();
 
 - (UIView *)view
 {
-  _session = [AVCaptureSession new];
+  self.session = [AVCaptureSession new];
 #if !(TARGET_IPHONE_SIMULATOR)
-  self.previewLayer = [AVCaptureVideoPreviewLayer layerWithSession:_session];
+  self.previewLayer = [AVCaptureVideoPreviewLayer layerWithSession:self.session];
   self.previewLayer.needsDisplayOnBoundsChange = YES;
 #endif
   
@@ -74,6 +73,11 @@ RCT_EXPORT_MODULE();
     self.camera = [[RCTCamera alloc] initWithManager:self bridge:self.bridge];
   }
   return self.camera;
+}
+
++ (BOOL)requiresMainQueueSetup
+{
+  return NO;
 }
 
 - (NSDictionary *)constantsToExport
@@ -104,7 +108,6 @@ RCT_EXPORT_MODULE();
   if(&AVMetadataObjectTypeDataMatrixCode != NULL){
     [runtimeBarcodeTypes setObject:AVMetadataObjectTypeDataMatrixCode forKey:@"datamatrix"];
   }
-  
   
   return @{
            @"Aspect": @{
@@ -231,7 +234,7 @@ RCT_CUSTOM_VIEW_PROPERTY(type, NSInteger, RCTCamera) {
   NSInteger type = [RCTConvert NSInteger:json];
   
   self.presetCamera = type;
-  if (_session.isRunning) {
+  if (self.session.isRunning) {
     dispatch_async(self.sessionQueue, ^{
       AVCaptureDevice *currentCaptureDevice = [self.videoCaptureDeviceInput device];
       
@@ -253,13 +256,13 @@ RCT_CUSTOM_VIEW_PROPERTY(type, NSInteger, RCTCamera) {
         return;
       }
       
-      [_session beginConfiguration];
+      [self.session beginConfiguration];
       
-      [_session removeInput:self.videoCaptureDeviceInput];
+      [self.session removeInput:self.videoCaptureDeviceInput];
       
-      if ([_session canAddInput:captureDeviceInput])
+      if ([self.session canAddInput:captureDeviceInput])
       {
-        [_session addInput:captureDeviceInput];
+        [self.session addInput:captureDeviceInput];
         
         [NSNotificationCenter.defaultCenter removeObserver:self name:AVCaptureDeviceSubjectAreaDidChangeNotification object:currentCaptureDevice];
         
@@ -269,10 +272,10 @@ RCT_CUSTOM_VIEW_PROPERTY(type, NSInteger, RCTCamera) {
       }
       else
       {
-        [_session addInput:self.videoCaptureDeviceInput];
+        [self.session addInput:self.videoCaptureDeviceInput];
       }
       
-      [_session commitConfiguration];
+      [self.session commitConfiguration];
     });
   }
   [self initializeCaptureSessionInput:AVMediaTypeVideo];
@@ -333,6 +336,10 @@ RCT_CUSTOM_VIEW_PROPERTY(mirrorImage, BOOL, RCTCamera) {
   self.mirrorImage = [RCTConvert BOOL:json];
 }
 
+RCT_CUSTOM_VIEW_PROPERTY(cropToPreview, BOOL, RCTCamera) {
+    self.cropToPreview = [RCTConvert BOOL:json];
+}
+
 RCT_CUSTOM_VIEW_PROPERTY(barCodeTypes, NSArray, RCTCamera) {
   self.barCodeTypes = [RCTConvert NSArray:json];
 }
@@ -345,7 +352,7 @@ RCT_CUSTOM_VIEW_PROPERTY(captureAudio, BOOL, RCTCamera) {
   }
 }
 
-- (NSArray *)customDirectEventTypes
+- (NSArray *)customBubblingEventTypes
 {
   return @[
            @"focusChanged",
@@ -427,6 +434,28 @@ RCT_EXPORT_METHOD(capture:(NSDictionary *)options
   }
 }
 
+RCT_EXPORT_METHOD(stopPreview) {
+#if TARGET_IPHONE_SIMULATOR
+    return;
+#endif
+    dispatch_async(self.sessionQueue, ^{
+        if ([self.session isRunning]) {
+            [self.session stopRunning];
+        }
+    });
+}
+
+RCT_EXPORT_METHOD(startPreview) {
+#if TARGET_IPHONE_SIMULATOR
+    return;
+#endif
+    dispatch_async(self.sessionQueue, ^{
+        if (![self.session isRunning]) {
+            [self.session startRunning];
+        }
+    });
+}
+
 RCT_EXPORT_METHOD(stopCapture) {
   if (_recordingStatus == Recording) {
     @synchronized(self) {
@@ -486,7 +515,8 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
   resolve(@(device.hasFlash));
 }
 
-- (void)startSession {
+- (void)startSession
+{
 #if TARGET_IPHONE_SIMULATOR
   return;
 #endif
@@ -496,10 +526,10 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
     }
     // start av
     AVCaptureStillImageOutput *stillImageOutput = [[AVCaptureStillImageOutput alloc] init];
-    if ([_session canAddOutput:stillImageOutput])
+    if ([self.session canAddOutput:stillImageOutput])
     {
       stillImageOutput.outputSettings = @{AVVideoCodecKey : AVVideoCodecJPEG};
-      [_session addOutput:stillImageOutput];
+      [self.session addOutput:stillImageOutput];
       self.stillImageOutput = stillImageOutput;
     }
     
@@ -507,9 +537,9 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
     NSLog(@"Building avcapture output");
     AVCaptureAudioDataOutput *audioOut = [[AVCaptureAudioDataOutput alloc] init];
     [audioOut setSampleBufferDelegate:self queue:_audioCaptureQueue];
-    if ([_session canAddOutput:audioOut]){
+    if ([self.session canAddOutput:audioOut]){
       NSLog(@"Adding output for audio file output");
-      [_session addOutput:audioOut];
+      [self.session addOutput:audioOut];
       self.audioDataOutput = audioOut;
     }
     _audioConnection = [audioOut connectionWithMediaType:AVMediaTypeAudio];
@@ -519,9 +549,9 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
     videoOut.videoSettings = @{(id)kCVPixelBufferPixelFormatTypeKey: @(kCVPixelFormatType_32BGRA)};
     [videoOut setSampleBufferDelegate:self queue:_videoDataOutputQueue];
     videoOut.alwaysDiscardsLateVideoFrames = NO;
-    if ([_session canAddOutput:videoOut]){
+    if ([self.session canAddOutput:videoOut]){
       NSLog(@"ADding output for video file output");
-      [_session addOutput:videoOut];
+      [self.session addOutput:videoOut];
       self.videoDataOutput = videoOut;
     }
     _videoConnection = [videoOut connectionWithMediaType:AVMediaTypeVideo];
@@ -529,29 +559,30 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
     
     // setup metadata
     AVCaptureMetadataOutput *metadataOutput = [[AVCaptureMetadataOutput alloc] init];
-    if ([_session canAddOutput:metadataOutput]) {
+    if ([self.session canAddOutput:metadataOutput]) {
       [metadataOutput setMetadataObjectsDelegate:self queue:self.sessionQueue];
-      [_session addOutput:metadataOutput];
+      [self.session addOutput:metadataOutput];
       [metadataOutput setMetadataObjectTypes:self.barCodeTypes];
       self.metadataOutput = metadataOutput;
     }
     
     __weak RCTCameraManager *weakSelf = self;
-    [self setRuntimeErrorHandlingObserver:[NSNotificationCenter.defaultCenter addObserverForName:AVCaptureSessionRuntimeErrorNotification object:_session queue:nil usingBlock:^(NSNotification *note) {
+    [self setRuntimeErrorHandlingObserver:[NSNotificationCenter.defaultCenter addObserverForName:AVCaptureSessionRuntimeErrorNotification object:self.session queue:nil usingBlock:^(NSNotification *note) {
       RCTCameraManager *strongSelf = weakSelf;
       dispatch_async(strongSelf.sessionQueue, ^{
         NSLog(@"Log session restart failure");
         // Manually restarting the session since it must have been stopped due to an error.
-        [_session startRunning];
+        [self.session startRunning];
       });
     }]];
     
     NSLog(@"Starting session");
-    [_session startRunning];
+    [self.session startRunning];
   });
 }
 
-- (void)stopSession {
+- (void)stopSession
+{
 #if TARGET_IPHONE_SIMULATOR
   self.camera = nil;
   return;
@@ -559,22 +590,23 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
   dispatch_async(self.sessionQueue, ^{
     self.camera = nil;
     [self.previewLayer removeFromSuperlayer];
-    [_session commitConfiguration];
-    [_session stopRunning];
-    for(AVCaptureInput *input in _session.inputs) {
-      [_session removeInput:input];
+    [self.session commitConfiguration];
+    [self.session stopRunning];
+    for(AVCaptureInput *input in self.session.inputs) {
+      [self.session removeInput:input];
     }
     
-    for(AVCaptureOutput *output in _session.outputs) {
-      [_session removeOutput:output];
+    for(AVCaptureOutput *output in self.session.outputs) {
+      [self.session removeOutput:output];
     }
   });
 }
 
-- (void)initializeCaptureSessionInput:(NSString *)type {
+- (void)initializeCaptureSessionInput:(NSString *)type
+{
   dispatch_async(self.sessionQueue, ^{
     if (type == AVMediaTypeAudio) {
-      for (AVCaptureDeviceInput* input in [_session inputs]) {
+      for (AVCaptureDeviceInput* input in [self.session inputs]) {
         if ([input.device hasMediaType:AVMediaTypeAudio]) {
           // If an audio input has been configured we don't need to set it up again
           return;
@@ -582,7 +614,7 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
       }
     }
     
-    [_session beginConfiguration];
+    [self.session beginConfiguration];
     
     NSError *error = nil;
     AVCaptureDevice *captureDevice;
@@ -606,11 +638,11 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
     }
     
     if (type == AVMediaTypeVideo) {
-      [_session removeInput:self.videoCaptureDeviceInput];
+      [self.session removeInput:self.videoCaptureDeviceInput];
     }
     
-    if ([_session canAddInput:captureDeviceInput]) {
-      [_session addInput:captureDeviceInput];
+    if ([self.session canAddInput:captureDeviceInput]) {
+      [self.session addInput:captureDeviceInput];
       
       if (type == AVMediaTypeAudio) {
         self.audioCaptureDeviceInput = captureDeviceInput;
@@ -622,7 +654,7 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
       [self.metadataOutput setMetadataObjectTypes:self.metadataOutput.availableMetadataObjectTypes];
     }
     
-    [_session commitConfiguration];
+    [self.session commitConfiguration];
   });
 }
 
@@ -715,6 +747,22 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
           rotatedCGImage = cgImage;
         }
         
+        // Crop it
+        if (self.cropToPreview) {
+          CGSize viewportSize;
+          
+          if (UIInterfaceOrientationIsPortrait([[UIApplication sharedApplication] statusBarOrientation]))
+          {
+            viewportSize = CGSizeMake(self.previewLayer.frame.size.height, self.previewLayer.frame.size.width);
+          } else {
+            viewportSize = CGSizeMake(self.previewLayer.frame.size.width, self.previewLayer.frame.size.height);
+          }
+          
+          CGRect captureRect = CGRectMake(0, 0, CGImageGetWidth(rotatedCGImage), CGImageGetHeight(rotatedCGImage));
+          CGRect croppedSize = AVMakeRectWithAspectRatioInsideRect(viewportSize, captureRect);
+          rotatedCGImage = CGImageCreateWithImageInRect(rotatedCGImage, croppedSize);
+        }
+        
         // Erase stupid TIFF stuff
         [imageMetadata removeObjectForKey:(NSString *)kCGImagePropertyTIFFDictionary];
         
@@ -734,8 +782,7 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
         [self saveImage:rotatedImageData target:target metadata:imageMetadata resolve:resolve reject:reject];
         
         CGImageRelease(rotatedCGImage);
-      }
-      else {
+      } else {
         reject(RCTErrorUnspecified, nil, RCTErrorWithMessage(error.description));
       }
     }];
@@ -744,7 +791,8 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
 }
 
 
-- (void)saveImage:(NSData*)imageData target:(NSInteger)target metadata:(NSDictionary *)metadata resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject {
+- (void)saveImage:(NSData*)imageData target:(NSInteger)target metadata:(NSDictionary *)metadata resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject
+{
   NSString *responseString;
   
   if (target == RCTCameraCaptureTargetMemory) {
@@ -917,7 +965,8 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
   });
 }
 
-- (void) attemptToStartWriting:(RCTPromiseResolveBlock)resolve andReject:(RCTPromiseRejectBlock)reject {
+- (void) attemptToStartWriting:(RCTPromiseResolveBlock)resolve andReject:(RCTPromiseRejectBlock)reject
+{
   if (![_assetWriter startWriting]) {
     NSLog(@"Start writing failed");
     reject(RCTErrorUnspecified, nil, RCTErrorWithMessage(_assetWriter.error.description));
@@ -955,7 +1004,8 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
 }
 
 // Capture video and audio output
-- (void)captureOutput:(AVCaptureOutput *)captureOutput didOutputSampleBuffer:(nonnull CMSampleBufferRef)sampleBuffer fromConnection:(nonnull AVCaptureConnection *)connection {
+- (void)captureOutput:(AVCaptureOutput *)captureOutput didOutputSampleBuffer:(nonnull CMSampleBufferRef)sampleBuffer fromConnection:(nonnull AVCaptureConnection *)connection
+{
   CMFormatDescriptionRef formatDescription = CMSampleBufferGetFormatDescription( sampleBuffer );
   CFRetain(sampleBuffer);
   NSLog(@"session %d, %d", _startedSession, _startedTime);
@@ -1004,7 +1054,8 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
   }
 }
 
-- (void)captureOutput:(AVCaptureFileOutput *)captureOutput didFinishRecordingToOutputFileAtURL:(NSURL *)outputFileURL fromConnections:(NSArray *)connections error:(NSError *)error {
+- (void)captureOutput:(AVCaptureFileOutput *)captureOutput didFinishRecordingToOutputFileAtURL:(NSURL *)outputFileURL fromConnections:(NSArray *)connections error:(NSError *)error
+{
   NSLog(@"CApture file output called");
   BOOL recordSuccess = YES;
   if ([error code] != noErr) {
@@ -1052,7 +1103,14 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
                                     if (error) {
                                       self.videoReject(RCTErrorUnspecified, nil, RCTErrorWithMessage(error.description));
                                       return;
+                                    } else if (assetURL == nil) {
+                                      //It's possible for writing to camera roll to fail,
+                                      //without receiving an error message, but assetURL will be nil
+                                      //Happens when disk is (almost) full
+                                      self.videoReject(RCTErrorUnspecified, nil, RCTErrorWithMessage(@"Not enough storage"));
+                                      return;
                                     }
+
                                     [videoInfo setObject:[assetURL absoluteString] forKey:@"path"];
                                     self.videoResolve(videoInfo);
                                   }];
@@ -1091,9 +1149,8 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
   }
 }
 
-- (void)captureOutput:(AVCaptureOutput *)captureOutput didOutputMetadataObjects:(NSArray *)metadataObjects fromConnection:(AVCaptureConnection *)connection {
-  
-  
+- (void)captureOutput:(AVCaptureOutput *)captureOutput didOutputMetadataObjects:(NSArray *)metadataObjects fromConnection:(AVCaptureConnection *)connection
+{
   for (AVMetadataMachineReadableCodeObject *metadata in metadataObjects) {
     for (id barcodeType in self.barCodeTypes) {
       if ([metadata.type isEqualToString:barcodeType]) {
@@ -1200,7 +1257,8 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
   }
 }
 
-- (void)zoom:(CGFloat)velocity reactTag:(NSNumber *)reactTag{
+- (void)zoom:(CGFloat)velocity reactTag:(NSNumber *)reactTag
+{
   if (isnan(velocity)) {
     return;
   }
@@ -1234,17 +1292,18 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
 {
 #if !(TARGET_IPHONE_SIMULATOR)
   if (quality) {
-    [_session beginConfiguration];
-    if ([_session canSetSessionPreset:quality]) {
-      _session.sessionPreset = quality;
+    [self.session beginConfiguration];
+    if ([self.session canSetSessionPreset:quality]) {
+      self.session.sessionPreset = quality;
     }
-    [_session commitConfiguration];
+    [self.session commitConfiguration];
   }
 #endif
 }
 
 // call under @synchonized( self )
-- (void)transitionToRecordingStatus:(RecordingStatus)newStatus error:(NSError *)error {
+- (void)transitionToRecordingStatus:(RecordingStatus)newStatus error:(NSError *)error
+{
   RecordingStatus oldStatus = _recordingStatus;
   _recordingStatus = newStatus;
   
@@ -1267,13 +1326,15 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
   // now write back to react native
 }
 
-- (void)tearDownWriters {
+- (void)tearDownWriters
+{
   _videoInput = nil;
   _audioInput = nil;
   _assetWriter = nil;
 }
 
-- (void)handleFinishedRecording {
+- (void)handleFinishedRecording
+{
   NSURL *url = _assetWriter.outputURL;
   [self tearDownWriters];
   
@@ -1363,7 +1424,8 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
   }
 }
 
-- (NSString *)stringForRecordingStatus:(RecordingStatus)status {
+- (NSString *)stringForRecordingStatus:(RecordingStatus)status
+{
   NSString *statusString = nil;
   
   switch ( status ){
@@ -1393,7 +1455,8 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
 }
 
 // Auto mirroring: Front camera is mirrored; back camera isn't
-- (CGAffineTransform)transformFromVideoBufferOrientationToOrientation:(AVCaptureVideoOrientation)orientation withAutoMirroring:(BOOL)mirror {
+- (CGAffineTransform)transformFromVideoBufferOrientationToOrientation:(AVCaptureVideoOrientation)orientation withAutoMirroring:(BOOL)mirror
+{
   CGAffineTransform transform = CGAffineTransformIdentity;
   
   // Calculate offsets from an arbitrary reference orientation (portrait)
@@ -1418,7 +1481,8 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
   return transform;
 }
 
-static CGFloat angleOffsetFromPortraitOrientationToOrientation(AVCaptureVideoOrientation orientation) {
+static CGFloat angleOffsetFromPortraitOrientationToOrientation(AVCaptureVideoOrientation orientation)
+{
   CGFloat angle = 0.0;
   
   switch ( orientation ) {
@@ -1439,6 +1503,21 @@ static CGFloat angleOffsetFromPortraitOrientationToOrientation(AVCaptureVideoOri
   }
   
   return angle;
+}
+
+- (void)setCaptureQuality:(NSString *)quality
+{
+#if !(TARGET_IPHONE_SIMULATOR)
+  if (quality) {
+    dispatch_async([self sessionQueue], ^{
+      [self.session beginConfiguration];
+      if ([self.session canSetSessionPreset:quality]) {
+        self.session.sessionPreset = quality;
+      }
+      [self.session commitConfiguration];
+    });
+  }
+#endif
 }
 
 @end

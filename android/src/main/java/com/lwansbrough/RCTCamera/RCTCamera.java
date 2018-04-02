@@ -7,6 +7,7 @@ package com.lwansbrough.RCTCamera;
 import android.graphics.drawable.GradientDrawable;
 import android.hardware.Camera;
 import android.media.CamcorderProfile;
+import android.media.MediaRecorder;
 import android.util.Log;
 
 import java.util.HashMap;
@@ -276,7 +277,11 @@ public class RCTCamera {
         switch (captureQuality) {
             case RCTCameraModule.RCT_CAMERA_CAPTURE_QUALITY_LOW:
                 videoSize = getSmallestSize(supportedSizes);
-                cm = CamcorderProfile.get(_cameraTypeToIndex.get(cameraType), CamcorderProfile.QUALITY_480P);
+                cm = getLowQualityProfile(_cameraTypeToIndex.get(cameraType));
+                break;
+            case RCTCameraModule.RCT_CAMERA_CAPTURE_QUALITY_OK:
+                videoSize = getOptimalVideoSize(camera.getParameters().getSupportedVideoSizes(), camera.getParameters().getSupportedPreviewSizes(), 320, 240);
+                cm = getLowQualityProfile(_cameraTypeToIndex.get(cameraType));
                 break;
             case RCTCameraModule.RCT_CAMERA_CAPTURE_QUALITY_MEDIUM:
                 videoSize = supportedSizes.get(supportedSizes.size() / 2);
@@ -308,6 +313,14 @@ public class RCTCamera {
             cm.videoFrameHeight = videoSize.height;
             cm.videoFrameWidth = videoSize.width;
         }
+
+        //- our default video and audio encodings
+        cm.fileFormat = MediaRecorder.OutputFormat.MPEG_4;
+        cm.videoCodec = MediaRecorder.VideoEncoder.H264;
+        cm.audioCodec = MediaRecorder.AudioEncoder.AAC;
+
+        //- calculate bit rate based on some motion factor, 1.5 being not a lot of motion
+        cm.videoBitRate = (int) (cm.videoFrameWidth * cm.videoFrameHeight * cm.videoFrameRate * 1.5f * .07f);
 
         return cm;
     }
@@ -435,6 +448,29 @@ public class RCTCamera {
         }
     }
 
+    public void updatePreviewSize(int type, CamcorderProfile profile) {
+        Camera camera = _cameras.get(type);
+        int width = profile.videoFrameWidth;
+        int height = profile.videoFrameHeight;
+
+        if (camera == null) {
+            return;
+        }
+
+        Camera.Parameters params = camera.getParameters();
+
+        if (params != null) {
+            Camera.Size currPreviewSize = camera.getParameters().getPreviewSize();
+
+            if (currPreviewSize == null || currPreviewSize.width != width || currPreviewSize.height != height) {
+                camera.stopPreview();
+            }
+
+            params.setPreviewSize(width, height);
+            camera.setParameters(params);
+        }
+    }
+
     public void setPreviewPadding(int type, float width, float height) {
         CameraInfoWrapper cameraInfo = _cameraInfos.get(type);
         if (cameraInfo == null) {
@@ -443,6 +479,58 @@ public class RCTCamera {
 
         cameraInfo.previewPaddingWidth = Math.abs(width);
         cameraInfo.previewPaddingHeight = Math.abs(height);
+    }
+
+    private Camera.Size getOptimalVideoSize(List<Camera.Size> supportedVideoSizes,
+                                            List<Camera.Size> previewSizes, int w, int h) {
+        final double ASPECT_TOLERANCE = 0.1;
+        double targetRatio = (double) w / h;
+
+        List<Camera.Size> videoSizes;
+        if (supportedVideoSizes != null) {
+            videoSizes = supportedVideoSizes;
+        } else {
+            videoSizes = previewSizes;
+        }
+        Camera.Size optimalSize = null;
+
+        double minDiff = Double.MAX_VALUE;
+
+        int targetHeight = h;
+
+
+        for (Camera.Size size : videoSizes) {
+            double ratio = (double) size.width / size.height;
+            if (Math.abs(ratio - targetRatio) > ASPECT_TOLERANCE)
+                continue;
+            if (Math.abs(size.height - targetHeight) < minDiff && previewSizes.contains(size)) {
+                optimalSize = size;
+                minDiff = Math.abs(size.height - targetHeight);
+            }
+        }
+
+        if (optimalSize == null) {
+            minDiff = Double.MAX_VALUE;
+            for (Camera.Size size : videoSizes) {
+                if (Math.abs(size.height - targetHeight) < minDiff && previewSizes.contains(size)) {
+                    optimalSize = size;
+                    minDiff = Math.abs(size.height - targetHeight);
+                }
+            }
+        }
+        return optimalSize;
+    }
+
+    private CamcorderProfile getLowQualityProfile(int cameraId) {
+        int[] lowQualityProfiles = { CamcorderProfile.QUALITY_480P, CamcorderProfile.QUALITY_QVGA, CamcorderProfile.QUALITY_QCIF, CamcorderProfile.QUALITY_LOW };
+
+        for (int profile : lowQualityProfiles) {
+            if (CamcorderProfile.hasProfile(cameraId, profile)) {
+                return CamcorderProfile.get(cameraId, profile);
+            }
+        }
+
+        return CamcorderProfile.get(cameraId, CamcorderProfile.QUALITY_LOW);
     }
 
     private RCTCamera(int deviceOrientation) {

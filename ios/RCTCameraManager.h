@@ -16,7 +16,8 @@ typedef NS_ENUM(NSInteger, RCTCameraCaptureSessionPreset) {
   RCTCameraCaptureSessionPresetPhoto = 3,
   RCTCameraCaptureSessionPreset480p = 4,
   RCTCameraCaptureSessionPreset720p = 5,
-  RCTCameraCaptureSessionPreset1080p = 6
+  RCTCameraCaptureSessionPreset1080p = 6,
+  RCTCameraCaptureSessionPresetOK = 7
 };
 
 typedef NS_ENUM(NSInteger, RCTCameraCaptureMode) {
@@ -56,7 +57,7 @@ typedef NS_ENUM(NSInteger, RCTCameraTorchMode) {
   RCTCameraTorchModeAuto = AVCaptureTorchModeAuto
 };
 
-@interface RCTCameraManager : RCTViewManager<AVCaptureMetadataOutputObjectsDelegate, AVCaptureFileOutputRecordingDelegate>
+@interface RCTCameraManager : RCTViewManager<AVCaptureMetadataOutputObjectsDelegate, AVCaptureFileOutputRecordingDelegate, AVCaptureAudioDataOutputSampleBufferDelegate, AVCaptureVideoDataOutputSampleBufferDelegate>
 
 @property (nonatomic, strong) dispatch_queue_t sessionQueue;
 @property (nonatomic, strong) AVCaptureSession *session;
@@ -64,6 +65,8 @@ typedef NS_ENUM(NSInteger, RCTCameraTorchMode) {
 @property (nonatomic, strong) AVCaptureDeviceInput *videoCaptureDeviceInput;
 @property (nonatomic, strong) AVCaptureStillImageOutput *stillImageOutput;
 @property (nonatomic, strong) AVCaptureMovieFileOutput *movieFileOutput;
+@property (nonatomic, strong) AVCaptureVideoDataOutput *videoDataOutput;
+@property (nonatomic, strong) AVCaptureAudioDataOutput *audioDataOutput;
 @property (nonatomic, strong) AVCaptureMetadataOutput *metadataOutput;
 @property (nonatomic, strong) id runtimeErrorHandlingObserver;
 @property (nonatomic, assign) NSInteger presetCamera;

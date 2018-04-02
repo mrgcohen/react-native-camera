@@ -64,6 +64,7 @@ public class RCTCameraModule extends ReactContextBaseJavaModule
     public static final String RCT_CAMERA_CAPTURE_QUALITY_PREVIEW = "preview";
     public static final String RCT_CAMERA_CAPTURE_QUALITY_HIGH = "high";
     public static final String RCT_CAMERA_CAPTURE_QUALITY_MEDIUM = "medium";
+    public static final String RCT_CAMERA_CAPTURE_QUALITY_OK = "ok";
     public static final String RCT_CAMERA_CAPTURE_QUALITY_LOW = "low";
     public static final String RCT_CAMERA_CAPTURE_QUALITY_1080P = "1080p";
     public static final String RCT_CAMERA_CAPTURE_QUALITY_720P = "720p";
@@ -183,6 +184,7 @@ public class RCTCameraModule extends ReactContextBaseJavaModule
                 return Collections.unmodifiableMap(new HashMap<String, Object>() {
                     {
                         put("low", RCT_CAMERA_CAPTURE_QUALITY_LOW);
+                        put("ok", RCT_CAMERA_CAPTURE_QUALITY_OK);
                         put("medium", RCT_CAMERA_CAPTURE_QUALITY_MEDIUM);
                         put("high", RCT_CAMERA_CAPTURE_QUALITY_HIGH);
                         put("photo", RCT_CAMERA_CAPTURE_QUALITY_HIGH);
@@ -259,9 +261,16 @@ public class RCTCameraModule extends ReactContextBaseJavaModule
      */
     private Throwable prepareMediaRecorder(ReadableMap options) {
         // Prepare CamcorderProfile instance, setting essential options.
-        CamcorderProfile cm = RCTCamera.getInstance().setCaptureVideoQuality(options.getInt("type"), options.getString("quality"));
+        int cameraType = options.getInt("type");
+        CamcorderProfile cm = RCTCamera.getInstance().setCaptureVideoQuality(cameraType, options.getString("quality"));
         if (cm == null) {
             return new RuntimeException("CamcorderProfile not found in prepareMediaRecorder.");
+        }
+
+        try {
+            RCTCamera.getInstance().updatePreviewSize(cameraType, cm);
+        } catch (Exception e) {
+            e.printStackTrace();
         }
 
         // Unlock camera to make available for MediaRecorder. Note that this statement must be

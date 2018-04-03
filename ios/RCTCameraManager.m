@@ -277,24 +277,6 @@ RCT_CUSTOM_VIEW_PROPERTY(type, NSInteger, RCTCamera) {
         [self.session addInput:self.videoCaptureDeviceInput];
       }
 
-      // setup video
-      if (self.videoDataOutput != nil) {
-          [self.session removeOutput: self.videoDataOutput];
-          self.videoDataOutput = nil;
-      }
-
-      AVCaptureVideoDataOutput *videoOut = [[AVCaptureVideoDataOutput alloc] init];
-      videoOut.videoSettings = @{(id)kCVPixelBufferPixelFormatTypeKey: @(kCVPixelFormatType_32BGRA)};
-      [videoOut setSampleBufferDelegate:self queue:_videoDataOutputQueue];
-      videoOut.alwaysDiscardsLateVideoFrames = NO;
-      if ([self.session canAddOutput:videoOut]) {
-          [self.session addOutput:videoOut];
-          self.videoDataOutput = videoOut;
-      }
-
-      _videoConnection = [videoOut connectionWithMediaType:AVMediaTypeVideo];
-      _videoBufferOrientation = _videoConnection.videoOrientation;      
-
       [self.session commitConfiguration];
     });
   }
@@ -552,30 +534,6 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
       [self.session addOutput:stillImageOutput];
       self.stillImageOutput = stillImageOutput;
     }
-
-    // setup audio
-    NSLog(@"Building avcapture output");
-    AVCaptureAudioDataOutput *audioOut = [[AVCaptureAudioDataOutput alloc] init];
-    [audioOut setSampleBufferDelegate:self queue:_audioCaptureQueue];
-    if ([self.session canAddOutput:audioOut]){
-      NSLog(@"Adding output for audio file output");
-      [self.session addOutput:audioOut];
-      self.audioDataOutput = audioOut;
-    }
-    _audioConnection = [audioOut connectionWithMediaType:AVMediaTypeAudio];
-
-    // setup video
-    AVCaptureVideoDataOutput *videoOut = [[AVCaptureVideoDataOutput alloc] init];
-    videoOut.videoSettings = @{(id)kCVPixelBufferPixelFormatTypeKey: @(kCVPixelFormatType_32BGRA)};
-    [videoOut setSampleBufferDelegate:self queue:_videoDataOutputQueue];
-    videoOut.alwaysDiscardsLateVideoFrames = NO;
-    if ([self.session canAddOutput:videoOut]){
-      NSLog(@"Adding output for video file output");
-      [self.session addOutput:videoOut];
-      self.videoDataOutput = videoOut;
-    }
-    _videoConnection = [videoOut connectionWithMediaType:AVMediaTypeVideo];
-    _videoBufferOrientation = _videoConnection.videoOrientation;
 
     // setup metadata
     AVCaptureMetadataOutput *metadataOutput = [[AVCaptureMetadataOutput alloc] init];
@@ -968,6 +926,35 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
   //  }
 
   dispatch_async(self.sessionQueue, ^{
+      // setup audio
+      NSLog(@"Building avcapture output");
+      AVCaptureAudioDataOutput *audioOut = [[AVCaptureAudioDataOutput alloc] init];
+      [audioOut setSampleBufferDelegate:self queue:_audioCaptureQueue];
+      if ([self.session canAddOutput:audioOut]){
+          NSLog(@"Adding output for audio file output");
+          [self.session addOutput:audioOut];
+          self.audioDataOutput = audioOut;
+      }
+      _audioConnection = [audioOut connectionWithMediaType:AVMediaTypeAudio];
+
+      // setup video
+      if (self.videoDataOutput != nil) {
+          [self.session removeOutput: self.videoDataOutput];
+          self.videoDataOutput = nil;
+      }
+
+      AVCaptureVideoDataOutput *videoOut = [[AVCaptureVideoDataOutput alloc] init];
+      videoOut.videoSettings = @{(id)kCVPixelBufferPixelFormatTypeKey: @(kCVPixelFormatType_32BGRA)};
+      [videoOut setSampleBufferDelegate:self queue:_videoDataOutputQueue];
+      videoOut.alwaysDiscardsLateVideoFrames = NO;
+      if ([self.session canAddOutput:videoOut]) {
+          [self.session addOutput:videoOut];
+          self.videoDataOutput = videoOut;
+      }
+
+      _videoConnection = [videoOut connectionWithMediaType:AVMediaTypeVideo];
+      _videoBufferOrientation = _videoConnection.videoOrientation;
+
     // Create temporary URL to record to (mp4)
     NSString *outputPath = [[NSString alloc] initWithFormat:@"%@%@", NSTemporaryDirectory(), @"output.mp4"];
     NSURL *outputURL = [[NSURL alloc] initFileURLWithPath:outputPath];
@@ -988,7 +975,7 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
     _videoInput.expectsMediaDataInRealTime = YES;
     // add additional video modifications here
     NSLog(@"Orientiation passed in %ld, %ld", (long)orientation, (long)_orientation);
-    CGAffineTransform videoTransform = [self transformFromVideoBufferOrientationToOrientation:orientation withAutoMirroring:YES];
+    CGAffineTransform videoTransform = [self transformFromVideoBufferOrientationToOrientation:orientation withAutoMirroring:NO];
     _videoInput.transform = videoTransform;
     if ([_assetWriter canAddInput:_videoInput]) {
       [_assetWriter addInput:_videoInput];

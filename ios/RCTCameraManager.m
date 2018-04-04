@@ -366,6 +366,9 @@ RCT_CUSTOM_VIEW_PROPERTY(captureAudio, BOOL, RCTCamera) {
   if ((self = [super init])) {
     self.mirrorImage = false;
 
+    // default to front camera
+    self.presetCamera = AVCaptureDevicePositionFront;
+
     // for capture session
     self.sessionQueue = dispatch_queue_create("cameraManagerQueue", DISPATCH_QUEUE_SERIAL);
 
@@ -524,7 +527,8 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
 #endif
   dispatch_async(self.sessionQueue, ^{
     if (self.presetCamera == AVCaptureDevicePositionUnspecified) {
-      self.presetCamera = AVCaptureDevicePositionBack;
+      // shouldn't be unspecified, but in case it is, we like the front
+      self.presetCamera = AVCaptureDevicePositionFront;
     }
     // start av
     AVCaptureStillImageOutput *stillImageOutput = [[AVCaptureStillImageOutput alloc] init];

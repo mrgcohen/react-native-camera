@@ -206,7 +206,7 @@ RCT_CUSTOM_VIEW_PROPERTY(captureQuality, NSInteger, RCTCamera) {
       //      _videoWidth = [NSNumber numberWithInteger:320];
       //      _videoHeight = [NSNumber numberWithInteger:240];
       _frameRate = [NSNumber numberWithInteger:20];
-      _averageBitRate = [NSNumber numberWithInteger:500000];
+      _averageBitRate = [NSNumber numberWithInteger:212000];
       _videoProfile = AVVideoProfileLevelH264Main30;
       break;
   }

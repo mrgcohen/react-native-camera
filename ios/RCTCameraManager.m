@@ -202,11 +202,11 @@ RCT_CUSTOM_VIEW_PROPERTY(captureQuality, NSInteger, RCTCamera) {
       break;
     case RCTCameraCaptureSessionPresetOK:
       qualityString = AVCaptureSessionPreset352x288;
-//      how to add custom width and height
-//      _videoWidth = [NSNumber numberWithInteger:320];
-//      _videoHeight = [NSNumber numberWithInteger:240];
-      _frameRate = [NSNumber numberWithInteger:24];
-      _averageBitRate = [NSNumber numberWithInteger:161000];
+      //      how to add custom width and height
+      //      _videoWidth = [NSNumber numberWithInteger:320];
+      //      _videoHeight = [NSNumber numberWithInteger:240];
+      _frameRate = [NSNumber numberWithInteger:20];
+      _averageBitRate = [NSNumber numberWithInteger:500000];
       _videoProfile = AVVideoProfileLevelH264Main30;
       break;
   }
